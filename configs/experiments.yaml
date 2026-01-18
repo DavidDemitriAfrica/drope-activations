@@ -1,0 +1,82 @@
+# Experiment configurations
+
+# Phase 1: Baseline massive value analysis
+phase1:
+  # Reproduce Figure 2 from Massive Values paper
+  reproduce_figure2:
+    models: ["llama2-7b", "llama3-8b", "qwen2.5-7b"]
+    lambda_threshold: 5.0
+    analyze_tensors: ["query", "key", "value"]
+    num_samples: 100
+    context_length: 2048
+    output_dir: "results/phase1/figure2"
+
+  # Baseline contextual knowledge evaluation
+  contextual_baseline:
+    models: ["llama2-7b", "smollm-360m"]
+    tasks:
+      passkey:
+        context_lengths: [128, 256, 512, 1024, 2048]
+        depths: [10, 25, 50, 75, 90]
+        num_samples_per_config: 20
+      imdb:
+        max_samples: 1000
+      gsm8k:
+        max_samples: 500
+    output_dir: "results/phase1/baseline"
+
+# Phase 2: DroPE model analysis
+phase2:
+  # Massive value analysis on DroPE models
+  drope_analysis:
+    models: ["smollm-360m-drope", "llama2-7b-drope"]
+    baselines: ["smollm-360m", "llama2-7b"]
+    lambda_threshold: 5.0
+    analyze_tensors: ["query", "key", "value"]
+    compare_positions: true
+    output_dir: "results/phase2/massive_values"
+
+  # Disruption experiments
+  disruption:
+    models: ["llama2-7b", "llama2-7b-drope"]
+    methods: ["mean", "zero", "min"]
+    targets: ["both", "query", "key"]
+    control_types: ["random", "non_massive"]
+    tasks: ["passkey", "imdb"]
+    output_dir: "results/phase2/disruption"
+
+# Phase 3: Mechanistic analysis
+phase3:
+  # Recalibration evolution (requires training)
+  recalibration_tracking:
+    base_model: "smollm-360m"
+    checkpoint_tokens: [0, 500000000, 1000000000, 2000000000, 5000000000]
+    metrics: ["num_massive", "concentration", "position_similarity"]
+    output_dir: "results/phase3/recalibration"
+
+  # Attention pattern analysis
+  attention_patterns:
+    models: ["llama2-7b", "llama2-7b-drope"]
+    num_samples: 50
+    classify_heads: true
+    output_dir: "results/phase3/attention"
+
+# Phase 4: Extended analysis
+phase4:
+  # Context length scaling
+  context_scaling:
+    model_pairs:
+      - rope: "llama2-7b"
+        drope: "llama2-7b-drope"
+    context_multipliers: [1, 2, 4, 8]
+    base_context: 4096
+    task: "passkey"
+    output_dir: "results/phase4/context_scaling"
+
+# Default experiment settings
+defaults:
+  batch_size: 4
+  dtype: "float16"
+  device: "cuda"
+  seed: 42
+  num_workers: 4

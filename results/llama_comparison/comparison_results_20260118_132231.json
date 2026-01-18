@@ -1,0 +1,582 @@
+{
+  "rope": [
+    {
+      "layer": 0,
+      "num_massive_q": 11.333333333333334,
+      "num_massive_k": 20.0,
+      "num_massive_v": 107.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 1,
+      "num_massive_q": 2.6666666666666665,
+      "num_massive_k": 15.666666666666666,
+      "num_massive_v": 40.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 2,
+      "num_massive_q": 44.666666666666664,
+      "num_massive_k": 56.666666666666664,
+      "num_massive_v": 4.333333333333333,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 3,
+      "num_massive_q": 58.666666666666664,
+      "num_massive_k": 63.333333333333336,
+      "num_massive_v": 0.6666666666666666,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 4,
+      "num_massive_q": 58.0,
+      "num_massive_k": 57.333333333333336,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 5,
+      "num_massive_q": 58.333333333333336,
+      "num_massive_k": 52.666666666666664,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 6,
+      "num_massive_q": 62.666666666666664,
+      "num_massive_k": 55.333333333333336,
+      "num_massive_v": 4.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 7,
+      "num_massive_q": 57.333333333333336,
+      "num_massive_k": 47.333333333333336,
+      "num_massive_v": 2.3333333333333335,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 8,
+      "num_massive_q": 49.666666666666664,
+      "num_massive_k": 48.0,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 9,
+      "num_massive_q": 51.0,
+      "num_massive_k": 56.0,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 10,
+      "num_massive_q": 47.666666666666664,
+      "num_massive_k": 48.666666666666664,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 11,
+      "num_massive_q": 52.0,
+      "num_massive_k": 46.0,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 12,
+      "num_massive_q": 48.0,
+      "num_massive_k": 46.0,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 13,
+      "num_massive_q": 47.333333333333336,
+      "num_massive_k": 50.666666666666664,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 14,
+      "num_massive_q": 48.666666666666664,
+      "num_massive_k": 45.0,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 15,
+      "num_massive_q": 48.0,
+      "num_massive_k": 49.0,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 16,
+      "num_massive_q": 50.666666666666664,
+      "num_massive_k": 56.0,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 17,
+      "num_massive_q": 51.333333333333336,
+      "num_massive_k": 62.0,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 18,
+      "num_massive_q": 46.666666666666664,
+      "num_massive_k": 52.0,
+      "num_massive_v": 2.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 19,
+      "num_massive_q": 51.666666666666664,
+      "num_massive_k": 62.333333333333336,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 20,
+      "num_massive_q": 52.0,
+      "num_massive_k": 62.0,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 21,
+      "num_massive_q": 48.666666666666664,
+      "num_massive_k": 63.0,
+      "num_massive_v": 2.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 22,
+      "num_massive_q": 43.333333333333336,
+      "num_massive_k": 54.0,
+      "num_massive_v": 0.3333333333333333,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 23,
+      "num_massive_q": 45.333333333333336,
+      "num_massive_k": 53.0,
+      "num_massive_v": 0.3333333333333333,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 24,
+      "num_massive_q": 49.666666666666664,
+      "num_massive_k": 56.666666666666664,
+      "num_massive_v": 1.3333333333333333,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 25,
+      "num_massive_q": 41.0,
+      "num_massive_k": 49.333333333333336,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 26,
+      "num_massive_q": 49.666666666666664,
+      "num_massive_k": 59.333333333333336,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 27,
+      "num_massive_q": 41.0,
+      "num_massive_k": 46.666666666666664,
+      "num_massive_v": 3.3333333333333335,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 28,
+      "num_massive_q": 42.333333333333336,
+      "num_massive_k": 47.666666666666664,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 29,
+      "num_massive_q": 41.333333333333336,
+      "num_massive_k": 45.0,
+      "num_massive_v": 2.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 30,
+      "num_massive_q": 39.0,
+      "num_massive_k": 44.333333333333336,
+      "num_massive_v": 5.333333333333333,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 31,
+      "num_massive_q": 48.333333333333336,
+      "num_massive_k": 52.333333333333336,
+      "num_massive_v": 3.3333333333333335,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    }
+  ],
+  "drope": [
+    {
+      "layer": 0,
+      "num_massive_q": 9.333333333333334,
+      "num_massive_k": 16.333333333333332,
+      "num_massive_v": 40.666666666666664,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 1,
+      "num_massive_q": 101.33333333333333,
+      "num_massive_k": 21.666666666666668,
+      "num_massive_v": 105.66666666666667,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 2,
+      "num_massive_q": 30.333333333333332,
+      "num_massive_k": 9.0,
+      "num_massive_v": 11.333333333333334,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 3,
+      "num_massive_q": 20.333333333333332,
+      "num_massive_k": 35.333333333333336,
+      "num_massive_v": 1.3333333333333333,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 4,
+      "num_massive_q": 9.333333333333334,
+      "num_massive_k": 29.0,
+      "num_massive_v": 1.3333333333333333,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 5,
+      "num_massive_q": 14.666666666666666,
+      "num_massive_k": 37.0,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 6,
+      "num_massive_q": 20.333333333333332,
+      "num_massive_k": 39.333333333333336,
+      "num_massive_v": 3.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 7,
+      "num_massive_q": 15.0,
+      "num_massive_k": 37.666666666666664,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 8,
+      "num_massive_q": 12.666666666666666,
+      "num_massive_k": 35.0,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 9,
+      "num_massive_q": 15.666666666666666,
+      "num_massive_k": 41.0,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 10,
+      "num_massive_q": 15.666666666666666,
+      "num_massive_k": 38.333333333333336,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 11,
+      "num_massive_q": 29.0,
+      "num_massive_k": 44.333333333333336,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 12,
+      "num_massive_q": 23.666666666666668,
+      "num_massive_k": 41.666666666666664,
+      "num_massive_v": 0.6666666666666666,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 13,
+      "num_massive_q": 21.666666666666668,
+      "num_massive_k": 36.666666666666664,
+      "num_massive_v": 0.6666666666666666,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 14,
+      "num_massive_q": 22.666666666666668,
+      "num_massive_k": 43.333333333333336,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 15,
+      "num_massive_q": 28.0,
+      "num_massive_k": 46.0,
+      "num_massive_v": 0.6666666666666666,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 16,
+      "num_massive_q": 27.333333333333332,
+      "num_massive_k": 46.0,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 17,
+      "num_massive_q": 28.666666666666668,
+      "num_massive_k": 55.0,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 18,
+      "num_massive_q": 32.666666666666664,
+      "num_massive_k": 52.0,
+      "num_massive_v": 2.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 19,
+      "num_massive_q": 29.0,
+      "num_massive_k": 55.333333333333336,
+      "num_massive_v": 0.3333333333333333,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 20,
+      "num_massive_q": 34.333333333333336,
+      "num_massive_k": 59.666666666666664,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 21,
+      "num_massive_q": 34.333333333333336,
+      "num_massive_k": 69.66666666666667,
+      "num_massive_v": 1.3333333333333333,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 22,
+      "num_massive_q": 30.666666666666668,
+      "num_massive_k": 59.666666666666664,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 23,
+      "num_massive_q": 36.0,
+      "num_massive_k": 67.33333333333333,
+      "num_massive_v": 0.3333333333333333,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 24,
+      "num_massive_q": 32.333333333333336,
+      "num_massive_k": 70.0,
+      "num_massive_v": 1.6666666666666667,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 25,
+      "num_massive_q": 33.0,
+      "num_massive_k": 69.33333333333333,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 26,
+      "num_massive_q": 32.333333333333336,
+      "num_massive_k": 58.333333333333336,
+      "num_massive_v": 0.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 27,
+      "num_massive_q": 35.0,
+      "num_massive_k": 58.666666666666664,
+      "num_massive_v": 2.3333333333333335,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 28,
+      "num_massive_q": 36.0,
+      "num_massive_k": 58.333333333333336,
+      "num_massive_v": 1.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 29,
+      "num_massive_q": 35.333333333333336,
+      "num_massive_k": 55.333333333333336,
+      "num_massive_v": 1.6666666666666667,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 30,
+      "num_massive_q": 36.333333333333336,
+      "num_massive_k": 51.666666666666664,
+      "num_massive_v": 4.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    },
+    {
+      "layer": 31,
+      "num_massive_q": 32.333333333333336,
+      "num_massive_k": 36.0,
+      "num_massive_v": 4.0,
+      "concentration_q": -1.000244140625,
+      "concentration_k": -1.000244140625,
+      "concentration_v": -1.000244140625
+    }
+  ]
+}

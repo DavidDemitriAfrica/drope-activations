@@ -1,0 +1,71 @@
+# Model configurations for massive value experiments
+
+# DroPE models (from SakanaAI)
+drope_models:
+  smollm-360m-drope:
+    path: "SakanaAI/SmolLM-360M-DroPE"
+    base: "smollm-360m"
+    num_layers: 32
+    num_heads: 16
+    head_dim: 64
+
+  smollm-1.7b-drope:
+    path: "SakanaAI/SmolLM-1.7B-DroPE"
+    base: "smollm-1.7b"
+    num_layers: 24
+    num_heads: 32
+    head_dim: 64
+
+  llama2-7b-drope:
+    path: "SakanaAI/Llama-2-7B-DroPE"
+    base: "llama2-7b"
+    num_layers: 32
+    num_heads: 32
+    head_dim: 128
+
+# RoPE baselines
+rope_models:
+  smollm-360m:
+    path: "HuggingFaceTB/SmolLM-360M"
+    num_layers: 32
+    num_heads: 16
+    head_dim: 64
+    context_length: 2048
+
+  smollm-1.7b:
+    path: "HuggingFaceTB/SmolLM-1.7B"
+    num_layers: 24
+    num_heads: 32
+    head_dim: 64
+    context_length: 2048
+
+  llama2-7b:
+    path: "meta-llama/Llama-2-7b-hf"
+    num_layers: 32
+    num_heads: 32
+    head_dim: 128
+    context_length: 4096
+
+  llama3-8b:
+    path: "meta-llama/Meta-Llama-3-8B"
+    num_layers: 32
+    num_heads: 32
+    head_dim: 128
+    context_length: 8192
+
+  qwen2.5-7b:
+    path: "Qwen/Qwen2.5-7B"
+    num_layers: 28
+    num_heads: 28
+    head_dim: 128
+    context_length: 131072
+
+  mistral-7b:
+    path: "mistralai/Mistral-7B-v0.1"
+    num_layers: 32
+    num_heads: 32
+    head_dim: 128
+    context_length: 32768
+
+# Default model for quick experiments
+default_model: "smollm-360m"

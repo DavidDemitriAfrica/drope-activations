@@ -1,0 +1,22 @@
+{
+  "model": "smollm-360m",
+  "context_lengths": {
+    "512": {
+      "overall_accuracy": 1.0,
+      "per_depth": {
+        "10": {
+          "accuracy": 1.0,
+          "num_samples": 3
+        },
+        "50": {
+          "accuracy": 1.0,
+          "num_samples": 3
+        },
+        "90": {
+          "accuracy": 1.0,
+          "num_samples": 3
+        }
+      }
+    }
+  }
+}
