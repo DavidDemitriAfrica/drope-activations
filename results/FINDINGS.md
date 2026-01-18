@@ -76,9 +76,23 @@ DroPE ([Gelberg et al., 2025](https://arxiv.org/abs/2512.12167)) is a method tha
 3. **Value unchanged** — confirms prior work that V doesn't develop massive values
 4. **Results are consistent** — low standard deviation across diverse text types
 
+### The Layer 1 Anomaly
+
+A closer look reveals DroPE didn't uniformly reduce massive values — it **reorganized** them:
+
+| Layer | RoPE | DroPE | Change |
+|-------|------|-------|--------|
+| Layer 1 | 2.7 | **101.3** | **+37×** |
+| Layers 2-31 | ~50 each | ~20 each | -60% |
+
+![Figure 6: Layer 1 Anomaly](findings_figures/fig6_layer1_anomaly.png)
+*Figure 6: Layer 1 is the only layer where DroPE has MORE massive values than RoPE. This suggests DroPE concentrates some position-independent processing in the first layer.*
+
+**Possible interpretation:** Without positional embeddings, DroPE may use layer 1 to establish token relationships through content alone, then rely less on concentrated features in subsequent layers.
+
 ### Interpretation
 
-The Query tensor encodes "what to look for" in attention. The large reduction suggests DroPE models learn to distribute this information more evenly rather than concentrating it in specific dimensions.
+The Query tensor encodes "what to look for" in attention. The overall reduction suggests DroPE models learn to distribute this information more evenly, but the layer 1 spike indicates this isn't a simple uniform reduction — it's a fundamental reorganization of how attention is computed.
 
 ---
 
