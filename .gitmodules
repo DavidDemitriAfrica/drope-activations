@@ -1,0 +1,6 @@
+[submodule "DroPE"]
+	path = DroPE
+	url = https://github.com/SakanaAI/DroPE.git
+[submodule "Rope_with_LLM"]
+	path = Rope_with_LLM
+	url = https://github.com/MingyuJ666/Rope_with_LLM.git
