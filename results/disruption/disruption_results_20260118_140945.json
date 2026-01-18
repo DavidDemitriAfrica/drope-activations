@@ -1,0 +1,73 @@
+{
+  "rope": {
+    "baseline": {
+      "model_name": "Llama-2-7B-RoPE",
+      "disruption_type": "none",
+      "target": "both",
+      "perplexity_before": 1.15454439023902,
+      "perplexity_after": 1.15454439023902,
+      "ppl_increase": 0,
+      "ppl_increase_pct": 0,
+      "num_positions_disrupted": 0
+    },
+    "massive": {
+      "model_name": "Llama-2-7B-RoPE",
+      "disruption_type": "massive",
+      "target": "both",
+      "perplexity_before": 1.15454439023902,
+      "perplexity_after": 2945.9971110098236,
+      "ppl_increase": 2944.8425666195844,
+      "ppl_increase_pct": 255065.33932488534,
+      "num_positions_disrupted": 2981
+    },
+    "random": {
+      "model_name": "Llama-2-7B-RoPE",
+      "disruption_type": "random",
+      "target": "both",
+      "perplexity_before": 1.15454439023902,
+      "perplexity_after": 1.1881168341177109,
+      "ppl_increase": 0.03357244387869085,
+      "ppl_increase_pct": 2.907852150382932,
+      "num_positions_disrupted": 2981
+    }
+  },
+  "drope": {
+    "baseline": {
+      "model_name": "Llama-2-7B-DroPE",
+      "disruption_type": "none",
+      "target": "both",
+      "perplexity_before": 1.2917298481575485,
+      "perplexity_after": 1.2917298481575485,
+      "ppl_increase": 0,
+      "ppl_increase_pct": 0,
+      "num_positions_disrupted": 0
+    },
+    "massive": {
+      "model_name": "Llama-2-7B-DroPE",
+      "disruption_type": "massive",
+      "target": "both",
+      "perplexity_before": 1.2917298481575485,
+      "perplexity_after": 31.71886563303064,
+      "ppl_increase": 30.42713578487309,
+      "ppl_increase_pct": 2355.5340018094853,
+      "num_positions_disrupted": 2337
+    },
+    "random": {
+      "model_name": "Llama-2-7B-DroPE",
+      "disruption_type": "random",
+      "target": "both",
+      "perplexity_before": 1.2917298481575485,
+      "perplexity_after": 1.324240554908662,
+      "ppl_increase": 0.03251070675111345,
+      "ppl_increase_pct": 2.51683483179435,
+      "num_positions_disrupted": 2337
+    }
+  },
+  "summary": {
+    "rope_massive_dims": 2981,
+    "drope_massive_dims": 2337,
+    "rope_mr_diff": 255062.43147273496,
+    "drope_mr_diff": 2353.017166977691,
+    "hypothesis_supported": true
+  }
+}

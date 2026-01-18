@@ -18,7 +18,7 @@ from transformers import (
 DROPE_MODELS = {
     "smollm-360m-drope": "SakanaAI/SmolLM-360M-DroPE",
     "smollm-1.7b-drope": "SakanaAI/SmolLM-1.7B-DroPE",
-    "llama2-7b-drope": "SakanaAI/Llama-2-7B-DroPE",
+    "llama2-7b-drope": "SakanaAI/Llama-2-7b-hf-DroPE",
 }
 
 # RoPE baselines
