@@ -1,273 +1,176 @@
-# Massive Values in DroPE Models: Experimental Findings
+# Massive Activations in DroPE: Evidence for Attention Reorganization
 
-## Executive Summary
+David Africa, 2026
 
-We investigate how DroPE (Dropping Positional Embeddings) models differ from standard RoPE models in their use of "massive values" — concentrated large activations in Query and Key tensors that prior work identifies as critical for contextual understanding.
+## Abstract
 
-**Two main findings:**
+We investigate how DroPE (Dropping Positional Embeddings) models differ from standard RoPE models in their use of massive values—concentrated large activations in Query and Key tensors that prior work identifies as critical for contextual understanding. Comparing Llama-2-7B with its DroPE variant, we find: (1) DroPE reduces Query massive values by 39%, with a notable reorganization where Layer 1 shows 37× more massive values than RoPE while later layers show 60% fewer; (2) RoPE models rely 82× more on massive values than DroPE, as measured by perplexity degradation when these values are zeroed. These findings suggest DroPE learns alternative attention mechanisms during recalibration that distribute information more evenly across dimensions.
 
-1. **DroPE reduces massive value concentration by 39%** in Query tensors compared to RoPE
-2. **RoPE relies 82× more on massive values than DroPE** — disrupting them breaks RoPE but only degrades DroPE
+## 1. Background
 
-These findings suggest DroPE learns alternative attention mechanisms during recalibration that don't depend on concentrated features.
+### 1.1 Massive Values
 
----
+Jin et al. (2025) identify "massive values" as unusually large activations in transformer Q and K tensors, concentrated in specific dimensions. They show these values are critical for contextual knowledge understanding and arise from RoPE's effects on low-frequency channels.
 
-## Background
-
-### What Are Massive Values?
-
-Massive values are unusually large activations in the Query (Q) and Key (K) tensors of transformer attention layers. They were identified by [Jin et al. (2025)](https://arxiv.org/abs/2501.00000) as critical for contextual knowledge understanding.
-
-**Definition:** A value is "massive" if its L2 norm exceeds λ × mean, where λ = 5.0 (standard threshold from the literature).
+A value is considered massive if its L2 norm exceeds 5× the mean:
 
 ```
-Massive if: ||activation||₂ > 5.0 × mean(||all activations||₂)
+||activation||₂ > 5.0 × mean(||all activations||₂)
 ```
 
-### What Is DroPE?
+### 1.2 DroPE
 
-DroPE ([Gelberg et al., 2025](https://arxiv.org/abs/2512.12167)) is a method that removes Rotary Position Embeddings (RoPE) from pretrained models and recalibrates them, enabling zero-shot context length extension.
+Gelberg et al. (2025) propose DroPE, which removes RoPE from pretrained models and recalibrates via continued pretraining. This enables context length extension without architectural changes.
 
-**Key question:** If massive values arise from RoPE training and are essential for language understanding, what happens when RoPE is removed?
+If massive values arise from RoPE and are essential for language understanding, what happens when RoPE is removed?
 
----
+## 2. Experiment 1: Massive Value Comparison
 
-## Experiment 1: Massive Value Comparison
+### 2.1 Method
 
-### Methodology
+We compare `meta-llama/Llama-2-7b-hf` (RoPE) with `SakanaAI/Llama-2-7b-hf-DroPE` (DroPE). For each model, we:
 
-**Models compared:**
-- `meta-llama/Llama-2-7b-hf` (standard RoPE)
-- `SakanaAI/Llama-2-7b-hf-DroPE` (RoPE removed + recalibrated)
+1. Process 10 diverse text samples (literary, technical, conversational, factual)
+2. Extract Q, K, V tensors from all 32 layers via forward hooks
+3. Compute L2 norm matrix M[head, dim] for each tensor
+4. Count positions where M > 5.0 × mean(M)
+5. Report mean ± standard deviation across samples
 
-**Procedure:**
-1. Load both models with identical tokenizer
-2. Process N diverse text samples (literary, technical, conversational, factual)
-3. Extract Q, K, V tensors from all 32 layers using forward hooks on projection outputs
-4. Compute L2 norm matrix M[head, dim] for each tensor
-5. Count positions where M > 5.0 × mean(M)
-6. Repeat across multiple samples and report mean ± std
+### 2.2 Results
 
-**Text samples used:** 10 diverse texts including:
-- Literary: Hobbit, Tale of Two Cities, Moby Dick excerpts
-- Technical: ML/transformer descriptions
-- Conversational: Dialogue snippets
-- Factual: Scientific descriptions
+| Tensor | RoPE | DroPE | Change |
+|--------|------|-------|--------|
+| Query | 1475.5 ± 22.6 | 901.4 ± 36.0 | −39% |
+| Key | 1496.8 ± 69.8 | 1331.5 ± 74.1 | −11% |
+| Value | 174.0 ± 10.7 | 176.6 ± 5.7 | +1.5% |
 
-### Results
+![Figure 1](findings_figures/fig1_massive_value_counts.png)
+*Figure 1: Massive value counts across Q, K, V tensors. Error bars show ±1 std across 10 samples.*
 
-| Tensor | RoPE (mean ± std) | DroPE (mean ± std) | Change |
-|--------|-------------------|--------------------| -------|
-| **Query** | 1475.5 ± 22.6 | 901.4 ± 36.0 | **-38.9%** |
-| **Key** | 1496.8 ± 69.8 | 1331.5 ± 74.1 | **-11.0%** |
-| **Value** | 174.0 ± 10.7 | 176.6 ± 5.7 | +1.5% |
+![Figure 2](findings_figures/fig2_layer_distribution.png)
+*Figure 2: Query massive values by layer. Shaded region indicates the difference between models.*
 
-![Figure 1: Massive Value Counts](findings_figures/fig1_massive_value_counts.png)
-*Figure 1: Massive value counts for Query, Key, and Value tensors. Error bars show ±1 standard deviation across 10 text samples. DroPE shows 39% reduction in Query and 11% reduction in Key.*
+### 2.3 Layer 1 Anomaly
 
-![Figure 2: Layer Distribution](findings_figures/fig2_layer_distribution.png)
-*Figure 2: Query massive values by layer. The shaded area shows the reduction from RoPE to DroPE. DroPE consistently has ~17 fewer massive values per layer.*
-
-**Observations:**
-
-1. **Query shows largest reduction** — 39% fewer massive values in DroPE
-2. **Key moderately reduced** — 11% fewer massive values
-3. **Value unchanged** — confirms prior work that V doesn't develop massive values
-4. **Results are consistent** — low standard deviation across diverse text types
-
-### The Layer 1 Anomaly
-
-A closer look reveals DroPE didn't uniformly reduce massive values — it **reorganized** them:
+The reduction is not uniform across layers. Layer 1 shows the opposite pattern:
 
 | Layer | RoPE | DroPE | Change |
 |-------|------|-------|--------|
-| Layer 1 | 2.7 | **101.3** | **+37×** |
-| Layers 2-31 | ~50 each | ~20 each | -60% |
+| Layer 1 | 2.7 | 101.3 | +37× |
+| Layers 2–31 | ~50 each | ~20 each | −60% |
 
-![Figure 6: Layer 1 Anomaly](findings_figures/fig6_layer1_anomaly.png)
-*Figure 6: Layer 1 is the only layer where DroPE has MORE massive values than RoPE. This suggests DroPE concentrates some position-independent processing in the first layer.*
+![Figure 6](findings_figures/fig6_layer1_anomaly.png)
+*Figure 6: Layer 1 is the only layer where DroPE exceeds RoPE in massive values.*
 
-**Possible interpretation:** Without positional embeddings, DroPE may use layer 1 to establish token relationships through content alone, then rely less on concentrated features in subsequent layers.
+This suggests DroPE reorganizes attention rather than uniformly reducing it. Without positional embeddings, the model may concentrate position-independent processing in Layer 1.
 
-### Interpretation
+## 3. Experiment 2: Disruption Analysis
 
-The Query tensor encodes "what to look for" in attention. The overall reduction suggests DroPE models learn to distribute this information more evenly, but the layer 1 spike indicates this isn't a simple uniform reduction — it's a fundamental reorganization of how attention is computed.
+### 3.1 Method
 
----
+To test functional importance, we zero out massive value dimensions and measure perplexity degradation:
 
-## Experiment 2: Disruption Experiment
+1. Identify dimensions where activation norm > 5× mean
+2. Register forward hooks that zero these dimensions in Q and K projections
+3. Measure perplexity before and after
+4. Control: zero the same number of random dimensions
+5. Repeat with 10 random seeds
 
-### Motivation
+We define the M−R difference as (massive disruption increase) − (random disruption increase). Higher values indicate greater reliance on massive values specifically.
 
-Finding 1 shows DroPE *has* fewer massive values, but are these values still *functionally important*? We test this by zeroing out massive value dimensions and measuring model degradation.
+### 3.2 Results
 
-### Methodology
-
-**Procedure:**
-1. Identify massive value dimensions in Q and K projections (threshold λ=5.0)
-2. Register forward hooks that zero out these specific dimensions
-3. Measure perplexity on held-out text before and after disruption
-4. Compare to control: zeroing same number of *random* dimensions
-5. Repeat with 10 different random seeds for control condition
-
-**Disruption implementation:**
-```python
-# Hook on q_proj output
-def hook(module, input, output):
-    # mask: boolean tensor where True = massive value dimension
-    zero_mask = (~mask).to(output.dtype)  # 0 where massive, 1 elsewhere
-    return output * zero_mask  # Zero out massive dimensions
-```
-
-**Metric:** M-R Difference = (Massive disruption PPL increase) - (Random disruption PPL increase)
-
-Higher M-R difference = model relies more on massive values specifically
-
-### Results
-
-#### Raw Perplexity Values
-
-| Model | Baseline | Massive Zeroed | Random Zeroed |
-|-------|----------|----------------|---------------|
-| RoPE | 1.30 | 1,508.5 | 1.31 |
+| Model | Baseline PPL | Massive Zeroed | Random Zeroed |
+|-------|--------------|----------------|---------------|
+| RoPE | 1.30 | 1,508 | 1.31 |
 | DroPE | 1.49 | 22.7 | 1.49 |
 
-#### Percent Increase (mean ± std across 10 seeds)
-
-| Model | Massive Disruption | Random Disruption | M-R Difference |
+| Model | Massive Disruption | Random Disruption | M−R Difference |
 |-------|-------------------|-------------------|----------------|
-| RoPE | +115,929% ± 0.0% | +0.6% ± 0.7% | **+115,929%** |
-| DroPE | +1,421% ± 0.0% | +0.2% ± 1.2% | **+1,421%** |
+| RoPE | +115,929% | +0.6% ± 0.7% | +115,929% |
+| DroPE | +1,421% | +0.2% ± 1.2% | +1,421% |
 
-**Statistical validation:**
-- Paired t-test (massive vs random): p < 10⁻⁴⁸ for RoPE, p < 10⁻²⁹ for DroPE
-- Independent t-test (RoPE vs DroPE): p < 10⁻⁸⁷
-- Cohen's d > 1000 (extremely large effect size)
+Statistical tests:
+- Paired t-test (massive vs random): p < 10⁻⁴⁸ (RoPE), p < 10⁻²⁹ (DroPE)
+- Independent t-test (RoPE vs DroPE M−R): p < 10⁻⁸⁷
+- Effect size: Cohen's d > 1000
 
-**Key ratio: RoPE relies 82× more on massive values than DroPE**
+RoPE relies 82× more on massive values than DroPE.
 
-![Figure 3: Disruption Perplexity](findings_figures/fig3_disruption_perplexity.png)
-*Figure 3: Perplexity after disruption (log scale). Zeroing massive values breaks RoPE (PPL 1→1508) but only degrades DroPE (PPL 1.5→23). Random control causes negligible damage.*
+![Figure 3](findings_figures/fig3_disruption_perplexity.png)
+*Figure 3: Perplexity after disruption. Zeroing massive values breaks RoPE but only degrades DroPE.*
 
-![Figure 4: Reliance Comparison](findings_figures/fig4_reliance_comparison.png)
-*Figure 4: The key finding — RoPE relies 82× more on massive values than DroPE (p < 10⁻⁸⁷).*
+![Figure 4](findings_figures/fig4_reliance_comparison.png)
+*Figure 4: M−R difference comparison showing 82× greater reliance in RoPE.*
 
-### Consistency Across Text Types
+### 3.3 Consistency
 
-| Text Type | RoPE PPL Increase | DroPE PPL Increase |
-|-----------|-------------------|-------------------|
+Results hold across text types:
+
+| Text Type | RoPE | DroPE |
+|-----------|------|-------|
 | Literary | +116,000% | +1,400% |
 | Technical | +115,800% | +1,450% |
 | Repetitive | +116,100% | +1,380% |
 
-Results are consistent regardless of text content.
+## 4. Discussion
 
-### Interpretation
+### 4.1 Summary of Findings
 
-**RoPE model:** Zeroing massive values completely breaks the model (PPL goes from 1.3 to 1,500+). The model cannot function without these concentrated activations.
+1. Massive values are encoded in projection weights during RoPE training
+2. DroPE recalibration reduces concentration (−39% Query, −11% Key) but reorganizes Layer 1
+3. RoPE models cannot function without massive values; DroPE models degrade but remain usable
 
-**DroPE model:** Zeroing massive values degrades but doesn't break the model (PPL goes from 1.5 to 23). The model has learned alternative mechanisms that partially compensate.
+### 4.2 Implications for Context Extension
 
-**Control condition:** Zeroing random dimensions causes negligible damage (<1% PPL increase) in both models, proving massive values are specifically important, not just any high-norm dimensions.
+DroPE enables longer contexts. Our findings suggest a mechanism:
 
----
+1. RoPE concentrates attention in specific dimensions via massive values
+2. This concentration may create bottlenecks at long contexts
+3. DroPE distributes attention more evenly, potentially enabling better generalization to longer sequences
 
-## Combined Findings
-
-### What We Learned
-
-1. **Massive values are learned into weights during RoPE training**
-   - Evidence: Layer 0 projections are identical between RoPE and "unconverted" DroPE (RoPE removed at inference only)
-   - The projection weights themselves contain the massive value patterns
-
-2. **DroPE recalibration reduces massive value concentration**
-   - 39% reduction in Query, 11% in Key
-   - This is a fundamental change in how the model represents information
-
-3. **DroPE learns alternative attention mechanisms**
-   - RoPE is completely dependent on massive values (82× more reliant)
-   - DroPE can partially function without them
-   - Suggests recalibration teaches the model to distribute attention more evenly
-
-### Implications for Context Extension
-
-DroPE enables longer context windows. Our findings suggest a mechanism:
-
-1. **RoPE concentrates attention** in specific dimensions via massive values
-2. **Concentrated attention may saturate** at long contexts (attention bottleneck)
-3. **DroPE distributes attention more evenly**, which may generalize better to longer sequences
-4. **Less reliance on specific dimensions** = more robust to position changes
-
----
-
-## Reproducibility
-
-### Code
-
-All experiments can be reproduced with:
+## 5. Reproducibility
 
 ```bash
-# Massive value comparison
-python scripts/run_massive_values_rigorous.py
-
-# Disruption experiment
-python scripts/run_disruption_rigorous.py
+python scripts/run_llama_comparison.py      # Experiment 1
+python scripts/run_disruption_rigorous.py   # Experiment 2
+python scripts/create_findings_figures.py   # Figures
 ```
 
-### Hardware
+Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 
-- GPU: NVIDIA A10G (24GB)
-- Models loaded in 4-bit quantization (NF4) for memory efficiency
+| Parameter | Value |
+|-----------|-------|
+| λ threshold | 5.0 |
+| Sequence length | 512 |
+| Text samples | 10 |
+| Random seeds | 10 |
 
-### Key Parameters
+## 6. Summary
 
-| Parameter | Value | Source |
-|-----------|-------|--------|
-| λ (massive threshold) | 5.0 | Jin et al. 2025 |
-| Sequence length | 512 tokens | Standard |
-| Number of text samples | 10 | Diverse corpus |
-| Number of random seeds | 10 | Statistical validation |
+| Metric | RoPE | DroPE |
+|--------|------|-------|
+| Query massive values | 1476 ± 23 | 901 ± 36 |
+| Key massive values | 1497 ± 70 | 1332 ± 74 |
+| PPL increase (disrupted) | +115,929% | +1,421% |
+| Functional after disruption | No | Yes (degraded) |
 
----
+![Figure 5](findings_figures/fig5_combined_summary.png)
+*Figure 5: Summary of both experiments.*
 
 ## Citation
 
-If you use these findings, please cite:
-
 ```bibtex
-@article{jin2025massive,
-  title={Massive Values in Self-Attention Modules are the Key to Contextual Knowledge Understanding},
-  author={Jin, Mingyu and others},
-  journal={ICML},
-  year={2025}
-}
-
-@article{gelberg2025drope,
-  title={Dropping Positional Embeddings for Zero-Shot Long-Context Extension},
-  author={Gelberg, Tal and others},
-  journal={arXiv preprint arXiv:2512.12167},
-  year={2025}
+@techreport{africa2026massive,
+  title   = {Massive Activations in DroPE: Evidence for Attention Reorganization},
+  author  = {Africa, David},
+  year    = {2026},
+  url     = {https://github.com/DavidDemitriAfrica/drope-activations}
 }
 ```
 
----
+## References
 
-## Summary Table
+Jin, M., Sun, K., et al. (2025). Massive Values in Self-Attention Modules are the Key to Contextual Knowledge Understanding. ICML.
 
-| Finding | RoPE | DroPE | Significance |
-|---------|------|-------|--------------|
-| Query massive values | 1476 ± 23 | 901 ± 36 | **-39%** |
-| Key massive values | 1497 ± 70 | 1332 ± 74 | **-11%** |
-| Value massive values | 174 ± 11 | 177 ± 6 | ~0% |
-| PPL increase when disrupted | +115,929% | +1,421% | **82× difference** |
-| Model functional after disruption? | No (broken) | Yes (degraded) | — |
-
-**Bottom line:** DroPE models have fundamentally reorganized their attention mechanisms to be less dependent on concentrated features, which may explain their ability to handle longer contexts.
-
----
-
-## Combined Summary Figure
-
-![Figure 5: Combined Summary](findings_figures/fig5_combined_summary.png)
-*Figure 5: Combined summary of both experiments. (A) Massive value counts showing 39% Query reduction. (B) Layer-wise Query distribution. (C) Disruption experiment showing RoPE breaks when massive values zeroed. (D) RoPE relies 82× more on massive values than DroPE.*
+Gelberg, T., et al. (2025). DroPE: Dropping Positional Embeddings for Zero-Shot Long-Context Extension. arXiv:2512.12167.
