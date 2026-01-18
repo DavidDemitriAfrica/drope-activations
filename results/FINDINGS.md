@@ -63,6 +63,12 @@ DroPE ([Gelberg et al., 2025](https://arxiv.org/abs/2512.12167)) is a method tha
 | **Key** | 1496.8 ± 69.8 | 1331.5 ± 74.1 | **-11.0%** |
 | **Value** | 174.0 ± 10.7 | 176.6 ± 5.7 | +1.5% |
 
+![Figure 1: Massive Value Counts](findings_figures/fig1_massive_value_counts.png)
+*Figure 1: Massive value counts for Query, Key, and Value tensors. Error bars show ±1 standard deviation across 10 text samples. DroPE shows 39% reduction in Query and 11% reduction in Key.*
+
+![Figure 2: Layer Distribution](findings_figures/fig2_layer_distribution.png)
+*Figure 2: Query massive values by layer. The shaded area shows the reduction from RoPE to DroPE. DroPE consistently has ~17 fewer massive values per layer.*
+
 **Observations:**
 
 1. **Query shows largest reduction** — 39% fewer massive values in DroPE
@@ -126,6 +132,12 @@ Higher M-R difference = model relies more on massive values specifically
 - Cohen's d > 1000 (extremely large effect size)
 
 **Key ratio: RoPE relies 82× more on massive values than DroPE**
+
+![Figure 3: Disruption Perplexity](findings_figures/fig3_disruption_perplexity.png)
+*Figure 3: Perplexity after disruption (log scale). Zeroing massive values breaks RoPE (PPL 1→1508) but only degrades DroPE (PPL 1.5→23). Random control causes negligible damage.*
+
+![Figure 4: Reliance Comparison](findings_figures/fig4_reliance_comparison.png)
+*Figure 4: The key finding — RoPE relies 82× more on massive values than DroPE (p < 10⁻⁸⁷).*
 
 ### Consistency Across Text Types
 
@@ -238,3 +250,10 @@ If you use these findings, please cite:
 | Model functional after disruption? | No (broken) | Yes (degraded) | — |
 
 **Bottom line:** DroPE models have fundamentally reorganized their attention mechanisms to be less dependent on concentrated features, which may explain their ability to handle longer contexts.
+
+---
+
+## Combined Summary Figure
+
+![Figure 5: Combined Summary](findings_figures/fig5_combined_summary.png)
+*Figure 5: Combined summary of both experiments. (A) Massive value counts showing 39% Query reduction. (B) Layer-wise Query distribution. (C) Disruption experiment showing RoPE breaks when massive values zeroed. (D) RoPE relies 82× more on massive values than DroPE.*
