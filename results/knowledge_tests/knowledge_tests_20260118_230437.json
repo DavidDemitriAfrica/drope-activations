@@ -1,0 +1,26 @@
+{
+  "RoPE": {
+    "parametric": {
+      "baseline": 1.0,
+      "disrupted": 0,
+      "degradation": 100.0
+    },
+    "contextual": {
+      "baseline": 0,
+      "disrupted": 0,
+      "degradation": 0
+    }
+  },
+  "DroPE": {
+    "parametric": {
+      "baseline": 0.7540983606557377,
+      "disrupted": 0.4897959183673469,
+      "degradation": 35.04880212954747
+    },
+    "contextual": {
+      "baseline": 0.0967741935483871,
+      "disrupted": 0.18947368421052632,
+      "degradation": -95.78947368421053
+    }
+  }
+}

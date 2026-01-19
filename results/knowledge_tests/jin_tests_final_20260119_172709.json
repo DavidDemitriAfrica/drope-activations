@@ -1,0 +1,54 @@
+{
+  "RoPE": {
+    "parametric": {
+      "cities": {
+        "baseline": 0.895,
+        "disrupted": 0.575,
+        "degradation": 35.8
+      },
+      "sports": {
+        "baseline": 0.6,
+        "disrupted": 0.52,
+        "degradation": 13.3
+      }
+    },
+    "contextual": {
+      "imdb": {
+        "baseline": 0.44,
+        "disrupted": 0.05,
+        "degradation": 88.6
+      },
+      "passkey": {
+        "baseline": 1.0,
+        "disrupted": 0.0,
+        "degradation": 100.0
+      }
+    }
+  },
+  "DroPE": {
+    "parametric": {
+      "cities": {
+        "baseline": 0.79,
+        "disrupted": 0.885,
+        "degradation": -12.0253164556962
+      },
+      "sports": {
+        "baseline": 0.73,
+        "disrupted": 0.67,
+        "degradation": 8.219178082191773
+      }
+    },
+    "contextual": {
+      "imdb": {
+        "baseline": 0.3,
+        "disrupted": 0.15,
+        "degradation": 50.0
+      },
+      "passkey": {
+        "baseline": 0.6,
+        "disrupted": 0.6,
+        "degradation": 0.0
+      }
+    }
+  }
+}
