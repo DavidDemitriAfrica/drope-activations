@@ -201,11 +201,11 @@ The stark contrast in passkey results (100% collapse vs 0% degradation) provides
 
 ### 5.1 Background
 
-Queipo-de-Llano et al. (2025) identify two related phenomena in transformer models that they trace to massive activations in the residual stream.
+Prior work has identified several related phenomena in transformer models. Queipo-de-Llano et al. (2025) connect these phenomena, arguing they share a common cause in massive activations.
 
 **Attention Sinks**
 
-Attention sinks are tokens that receive disproportionate attention regardless of content. In autoregressive models, the BOS token typically becomes a sink because it is always visible to all positions. A head is classified as a "sink head" if its average attention to BOS exceeds a threshold τ. We use τ=0.3 following Queipo-de-Llano et al. The sink rate is the fraction of heads that qualify as sink heads.
+Attention sinks are tokens that receive disproportionate attention regardless of content. In autoregressive models, the BOS token typically becomes a sink because it is always visible to all positions. A head is classified as a "sink head" if its average attention to BOS exceeds a threshold τ. We use τ=0.3. The sink rate is the fraction of heads that qualify as sink heads.
 
 ```
 sink_score(head) = mean attention to BOS across all query positions
@@ -215,11 +215,11 @@ sink_rate = mean(sink_head) across all heads
 
 **BOS Norm and Spike Layer**
 
-The BOS token develops unusually large activation norms in early layers, primarily through MLP processing. The "spike layer" is where the BOS norm first exceeds the mean norm of other tokens by a large margin. This spike creates the massive activations that Queipo-de-Llano et al. link to attention sink behavior.
+The BOS token develops unusually large activation norms in early layers, primarily through MLP processing. The "spike layer" is where the BOS norm first exceeds the mean norm of other tokens by a large margin.
 
 **Compression Valleys**
 
-Queipo-de-Llano et al. also observe "compression valleys"—layers where the representation entropy drops sharply, indicating that information is being compressed into fewer dimensions. We measure this via singular value entropy of the hidden state matrix.
+Compression valleys are layers where representation entropy drops sharply, indicating that information is being compressed into fewer dimensions. We measure this via singular value entropy of the hidden state matrix.
 
 ```
 entropy = -Σ (σᵢ/Σσ) × log(σᵢ/Σσ)
