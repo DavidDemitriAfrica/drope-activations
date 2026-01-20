@@ -2,47 +2,32 @@
 
 Investigating how removing RoPE affects massive activations and attention sinks in language models.
 
-## Key Finding
+## Summary
 
-**Both RoPE and DroPE have ~97% attention sink rates, but only RoPE depends on BOS-MLP processing.**
+We compare Llama-2-7B with and without RoPE to understand how removing positional embeddings affects the concentrated activations ("massive values") that prior work identifies as critical for contextual understanding.
 
-| Model | Sink Rate | BOS-MLP Ablation |
-|-------|-----------|------------------|
-| RoPE  | 98.9%     | 1249× PPL increase (catastrophic) |
-| DroPE | 96.7%     | 1.00× (no effect) |
+**Main findings**
 
-This reveals that attention flowing to BOS does not imply functional dependence on BOS. DroPE has learned to make BOS expendable despite high attention to it.
+1. DroPE reduces Query massive values by 39% and Key by 11%
+2. RoPE relies 82× more on massive values than DroPE (disruption causes 116,000% vs 1,400% PPL increase)
+3. Disrupting massive values degrades RoPE's contextual knowledge by 94% but DroPE's by only 25%
+4. Passkey retrieval collapses completely in RoPE (100%→0%) but is unaffected in DroPE (60%→60%)
+5. Both models have ~97% attention sink rates, but only RoPE depends on BOS-MLP processing (1249× vs 1.00× PPL change)
 
-## Results
+These findings suggest DroPE learns alternative attention mechanisms that don't rely on concentrated features or specific tokens.
 
-See detailed findings in:
-- [results/FINDINGS.md](results/FINDINGS.md) - Massive value comparison (Jin et al. replication)
-- [results/phase_metrics/PHASE_FINDINGS.md](results/phase_metrics/PHASE_FINDINGS.md) - Phase metrics and BOS-MLP ablation
+See [results/FINDINGS.md](results/FINDINGS.md) for full details.
 
-## DroPE Compatibility Notes
+## DroPE Compatibility
 
-DroPE requires specific handling due to compatibility issues:
+DroPE requires specific handling due to bugs in eager attention mode.
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| **Eager attention NaN** | DroPE produces NaN from layer 2+ with `attn_implementation="eager"` | Use SDPA (default) or compute attention manually via Q/K hooks |
-| **Padding CUDA errors** | Index out of bounds with padded sequences | Disable padding or use variable-length inputs |
+| Eager attention NaN | DroPE produces NaN from layer 2+ with `attn_implementation="eager"` | Use SDPA (default) or manual Q/K hooks |
+| Padding CUDA errors | Index out of bounds with padded sequences | Use variable-length inputs |
 
-### Computing Sink Rates for DroPE
-
-Standard `output_attentions=True` fails for DroPE. Use manual computation:
-
-```python
-# Hook into Q/K projections
-layer.self_attn.q_proj.register_forward_hook(capture_hook('q'))
-layer.self_attn.k_proj.register_forward_hook(capture_hook('k'))
-
-# Compute attention manually
-attn_scores = torch.matmul(q, k.transpose(-2, -1)) * scale
-attn_weights = F.softmax(attn_scores.masked_fill(causal_mask, -inf), dim=-1)
-```
-
-See `scripts/fix_drope_sink_rates.py` for full implementation.
+For attention analysis, compute weights manually via hooks on Q/K projections. See `scripts/fix_drope_sink_rates.py`.
 
 ## Setup
 
@@ -55,45 +40,31 @@ pip install -r requirements.txt
 ## Running Experiments
 
 ```bash
-# Massive value comparison
-python scripts/run_llama_comparison.py
-
-# Disruption experiment
-python scripts/run_disruption_rigorous.py
-
-# Phase metrics (BOS norm, entropy, sink rates)
-python scripts/run_phase_metrics.py
-
-# Fix DroPE sink rates (manual Q/K method)
-python scripts/fix_drope_sink_rates.py
-
-# Generate figures
-python scripts/create_findings_figures.py
-python scripts/create_phase_figures.py
+python scripts/run_llama_comparison.py       # Massive value comparison
+python scripts/run_disruption_rigorous.py    # Disruption experiment
+python scripts/run_phase_metrics.py          # Phase metrics
+python scripts/fix_drope_sink_rates.py       # Sink rates (manual method)
+python scripts/create_findings_figures.py    # Figures
 ```
 
 ## Project Structure
 
 ```
 drope-activations/
-├── src/
-│   ├── massive_values/      # Extraction and analysis
-│   ├── drope/               # DroPE conversion utilities
-│   └── utils/               # Model loading
-├── scripts/                 # Experiment scripts
+├── src/                    # Analysis library
+├── scripts/                # Experiment scripts
 ├── results/
-│   ├── FINDINGS.md          # Massive value findings
-│   ├── findings_figures/    # Figures for FINDINGS.md
-│   └── phase_metrics/       # Phase metrics results
-├── DroPE/                   # Submodule: SakanaAI DroPE code
-└── Rope_with_LLM/           # Submodule: Jin et al. code
+│   ├── FINDINGS.md         # Full writeup
+│   └── findings_figures/   # Figures
+├── DroPE/                  # SakanaAI DroPE code
+└── Rope_with_LLM/          # Jin et al. code
 ```
 
 ## Citation
 
 ```bibtex
 @techreport{africa2026massive,
-  title   = {Massive Activations in DroPE: BOS Attention Without BOS Dependence},
+  title   = {Massive Activations in DroPE: Evidence for Attention Reorganization},
   author  = {Africa, David},
   year    = {2026},
   url     = {https://github.com/DavidDemitriAfrica/drope-activations}
@@ -104,4 +75,4 @@ drope-activations/
 
 - Jin et al. (2025) - [Massive Values in Self-Attention Modules](https://arxiv.org/abs/2502.01563)
 - Gelberg et al. (2025) - [DroPE: Dropping Positional Embeddings](https://arxiv.org/abs/2512.12167)
-- Queipo-de-Llano et al. (2025) - Attention Sinks and Representation Compression Valleys
+- Queipo-de-Llano et al. (2025) - [Attention Sinks and Compression Valleys](https://arxiv.org/abs/2510.06477)
