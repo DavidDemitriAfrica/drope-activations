@@ -248,12 +248,18 @@ model.layers[spike_layer].mlp.register_forward_hook(bos_mlp_ablation_hook)
 
 Both models have high sink rates across nearly all layers, contrary to our hypothesis.
 
+![Figure 12](phase_metrics/fig_sink_rate.png)
+*Figure 12: Attention sink rates by layer. Both models converge to ~97% by layer 2.*
+
 **BOS-MLP Ablation**
 
 | Model | Baseline PPL | Ablated PPL | Change |
 |-------|--------------|-------------|--------|
 | RoPE  | 10.2 | 12,766 | **1249×** |
 | DroPE | 18.6 | 18.5 | **1.00×** |
+
+![Figure 13](phase_metrics/fig_interventions.png)
+*Figure 13: BOS-MLP ablation results. RoPE perplexity explodes while DroPE is unaffected.*
 
 ### 5.4 Additional Phase Metrics
 
@@ -265,6 +271,12 @@ Both models have high sink rates across nearly all layers, contrary to our hypot
 
 DroPE has 35% lower peak BOS norm and 11× higher minimum entropy (less compressed representations).
 
+![Figure 14](phase_metrics/fig_bos_norm.png)
+*Figure 14: BOS token norm by layer. Both models show similar profiles, with DroPE peaking slightly later.*
+
+![Figure 15](phase_metrics/fig_entropy.png)
+*Figure 15: Representation entropy by layer. DroPE maintains higher entropy throughout.*
+
 ### 5.5 Interpretation
 
 The results are striking. Despite nearly identical sink rates, the models respond completely differently to BOS-MLP ablation.
@@ -274,6 +286,12 @@ RoPE suffers catastrophic failure. The model cannot function without BOS-MLP pro
 DroPE shows zero effect. Despite 95.6% of heads attending to BOS, the information stored there is expendable. DroPE has learned to make BOS a "garbage collector" that receives attention but stores nothing essential.
 
 **Sink rate does not imply functional dependence.** Both models route attention to BOS, but only RoPE stores critical information there. This explains why DroPE's massive values appear vestigial—the model has reorganized to distribute critical information across the sequence rather than concentrating it in specific tokens or dimensions.
+
+![Figure 16](phase_metrics/fig_functional.png)
+*Figure 16: Functional dependence comparison. RoPE requires BOS-MLP; DroPE does not.*
+
+![Figure 17](phase_metrics/fig_phase_summary.png)
+*Figure 17: Summary of phase metrics analysis.*
 
 ## 6. Discussion
 
