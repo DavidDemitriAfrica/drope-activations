@@ -201,7 +201,31 @@ The stark contrast in passkey results (100% collapse vs 0% degradation) provides
 
 ### 5.1 Background
 
-Queipo-de-Llano et al. (2025) show that transformer models develop "attention sinks"—tokens (typically BOS) that receive disproportionate attention across many heads, acting as a "garbage collector" for unused attention mass. The BOS token develops extreme activation norms in early layers via MLP processing. Ablating the MLP output for BOS at its "spike layer" reveals whether the model depends on whatever information is stored there.
+Queipo-de-Llano et al. (2025) identify two related phenomena in transformer models that they trace to massive activations in the residual stream.
+
+**Attention Sinks**
+
+Attention sinks are tokens that receive disproportionate attention regardless of content. In autoregressive models, the BOS token typically becomes a sink because it is always visible to all positions. A head is classified as a "sink head" if its average attention to BOS exceeds a threshold τ. We use τ=0.3 following Queipo-de-Llano et al. The sink rate is the fraction of heads that qualify as sink heads.
+
+```
+sink_score(head) = mean attention to BOS across all query positions
+sink_head = 1 if sink_score >= 0.3 else 0
+sink_rate = mean(sink_head) across all heads
+```
+
+**BOS Norm and Spike Layer**
+
+The BOS token develops unusually large activation norms in early layers, primarily through MLP processing. The "spike layer" is where the BOS norm first exceeds the mean norm of other tokens by a large margin. This spike creates the massive activations that Queipo-de-Llano et al. link to attention sink behavior.
+
+**Compression Valleys**
+
+Queipo-de-Llano et al. also observe "compression valleys"—layers where the representation entropy drops sharply, indicating that information is being compressed into fewer dimensions. We measure this via singular value entropy of the hidden state matrix.
+
+```
+entropy = -Σ (σᵢ/Σσ) × log(σᵢ/Σσ)
+```
+
+where σᵢ are the singular values. Lower entropy means more concentrated (compressed) representations.
 
 We hypothesized that DroPE might eliminate attention sinks since RoPE creates the positional asymmetry that makes BOS special.
 
@@ -269,7 +293,11 @@ Both models have high sink rates across nearly all layers, contrary to our hypot
 | Peak BOS Norm | 982 (layer 23) | 632 (layer 26) |
 | Min Entropy | 0.008 (layer 1) | 0.090 (layer 2) |
 
-DroPE has 35% lower peak BOS norm and 11× higher minimum entropy (less compressed representations).
+The BOS spike layer is the first layer where the BOS token's norm exceeds other tokens by more than 2×. RoPE spikes at layer 1; DroPE delays this to layer 2.
+
+Peak BOS norm measures the maximum L2 norm the BOS token reaches across all layers. DroPE's peak is 35% lower than RoPE's, suggesting less extreme concentration in the BOS representation.
+
+Minimum entropy identifies the layer with the most compressed representations. RoPE reaches near-zero entropy (0.008) at layer 1, indicating extreme compression. DroPE's minimum is 11× higher (0.090), meaning representations stay more distributed even at their most compressed point.
 
 ![Figure 14](phase_metrics/fig_bos_norm.png)
 *Figure 14: BOS token norm by layer. Both models show similar profiles, with DroPE peaking slightly later.*
