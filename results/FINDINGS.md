@@ -290,14 +290,14 @@ Both models have high sink rates across nearly all layers, contrary to our hypot
 | Metric | RoPE | DroPE |
 |--------|------|-------|
 | BOS Spike Layer | 1 | 2 |
-| Peak BOS Norm | 982 (layer 23) | 632 (layer 26) |
-| Min Entropy | 0.008 (layer 1) | 0.090 (layer 2) |
+| Peak BOS Norm | 982 (layer 23) | 519 (layer 26) |
+| Min Entropy | 0.008 (layer 1) | 0.129 (layer 2) |
 
 The BOS spike layer is the first layer where the BOS token's norm exceeds other tokens by more than 2×. RoPE spikes at layer 1; DroPE delays this to layer 2.
 
-Peak BOS norm measures the maximum L2 norm the BOS token reaches across all layers. DroPE's peak is 35% lower than RoPE's, suggesting less extreme concentration in the BOS representation.
+Peak BOS norm measures the maximum L2 norm the BOS token reaches across all layers. DroPE's peak is 47% lower than RoPE's, suggesting less extreme concentration in the BOS representation.
 
-Minimum entropy identifies the layer with the most compressed representations. RoPE reaches near-zero entropy (0.008) at layer 1, indicating extreme compression. DroPE's minimum is 11× higher (0.090), meaning representations stay more distributed even at their most compressed point.
+Minimum entropy identifies the layer with the most compressed representations. RoPE reaches near-zero entropy (0.008) at layer 1, indicating extreme compression. DroPE's minimum is 16× higher (0.129), meaning representations stay more distributed even at their most compressed point.
 
 ![Figure 14](phase_metrics/fig_bos_norm.png)
 *Figure 14: BOS token norm by layer. Both models show similar profiles, with DroPE peaking slightly later.*
@@ -350,8 +350,10 @@ python scripts/run_llama_comparison.py      # Experiment 1
 python scripts/run_disruption_rigorous.py   # Experiment 2
 python scripts/finish_jin_tests.py          # Experiment 3 (Jin et al. replication)
 python scripts/run_phase_metrics.py         # Experiment 4 (phase metrics)
-python scripts/fix_drope_sink_rates.py      # Experiment 4 (correct sink rates)
-python scripts/create_findings_figures.py   # Figures
+python scripts/rerun_drope_metrics.py       # Experiment 4 (fix DroPE entropy)
+python scripts/fix_drope_sink_rates.py      # Experiment 4 (fix DroPE sink rates)
+python scripts/create_phase_figures.py      # Phase figures
+python scripts/create_findings_figures.py   # Main figures
 ```
 
 Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
