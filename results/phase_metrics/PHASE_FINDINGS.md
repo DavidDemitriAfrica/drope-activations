@@ -4,7 +4,7 @@
 
 We analyzed Queipo-style phase metrics (BOS norm, representation entropy, attention sink rates) and performed ablation experiments to understand how DroPE reorganizes attention compared to RoPE. Our key finding:
 
-**DroPE dramatically reduces attention sinks.** While RoPE uses BOS tokens as "garbage collectors" (97% sink rate), DroPE has only 1.6% sink rate. This explains why BOS-MLP ablation catastrophically fails RoPE (872× PPL increase) but barely affects DroPE (1.5% PPL increase).
+**DroPE dramatically reduces attention sinks.** While RoPE uses BOS tokens as "garbage collectors" (92% sink rate), DroPE has only 2.7% sink rate (35× reduction). This explains why BOS-MLP ablation catastrophically fails RoPE (872× PPL increase) but barely affects DroPE (1.5% PPL increase).
 
 ## Results Summary
 
@@ -22,17 +22,18 @@ We analyzed Queipo-style phase metrics (BOS norm, representation entropy, attent
 | BOS Spike Layer | 1 | 2 |
 | Peak BOS Norm | 982.1 (layer 23) | 632.2 (layer 26) |
 | Min Entropy (Compression Valley) | 0.0081 (layer 1) | 0.0895 (layer 2) |
-| **Average Sink Rate (τ=0.3)** | **96.6%** | **1.6%** |
+| **Average Sink Rate (τ=0.3)** | **91.9%** | **2.7%** |
 
-### Sink Rate by Layer (Corrected Measurement)
+### Sink Rate by Layer
 
 | Layers | RoPE | DroPE |
 |--------|------|-------|
-| 0-1 (early) | 43-62% | 18-31% |
+| 0 (first) | 6% | 54% |
+| 1 (BOS spike) | 2% | 31% |
 | 2-30 (middle/late) | ~100% | 0% |
-| 31 (final) | 88% | 0% |
+| 31 (final) | 60% | 0% |
 
-DroPE retains some sink behavior in early layers but completely eliminates it in layers 2+.
+DroPE has higher sink rates in layer 0-1 than RoPE (counterintuitively), but completely eliminates sinks in layers 2+. The overall average is 35× lower because RoPE has near-100% sink rates across 30 layers.
 
 ### Layer 1 Comparison (Where DroPE has 37× more massive values)
 
@@ -43,11 +44,13 @@ DroPE retains some sink behavior in early layers but completely eliminates it in
 
 ## Key Findings
 
-### 1. DroPE Dramatically Reduces Attention Sinks
+### 1. DroPE Reorganizes Attention Sink Distribution
 
-RoPE uses BOS tokens as attention sinks in 97% of attention heads (100% in layers 2-30), serving as "garbage collectors" for unused attention. DroPE reduces this to **1.6%** - maintaining some sink behavior only in early layers (0-1).
+RoPE uses BOS tokens as attention sinks in 92% of attention heads overall, with near-100% sink rates in layers 2-30. DroPE reduces the overall average to **2.7%** (35× reduction).
 
-This is a striking finding: attention sinks in middle and late layers appear to emerge from RoPE's positional encoding, not from the transformer architecture itself.
+Surprisingly, DroPE has **higher** sink rates in early layers (54% in layer 0, 31% in layer 1) compared to RoPE (6% and 2%). But DroPE completely eliminates sinks in layers 2+, while RoPE maintains ~100% sink rates there.
+
+This suggests RoPE's positional encoding creates attention sinks specifically in middle and late layers, not early ones. DroPE compensates with more early-layer sink activity but doesn't need the mechanism elsewhere.
 
 ### 2. BOS-MLP Ablation Reveals Fundamental Difference
 
@@ -149,15 +152,16 @@ DroPE with eager attention + padding:
 
 ### Corrected Sink Rate Comparison
 
-The initial automated measurement reported 0% sink rate for DroPE because attention capture was disabled. Manual verification with eager attention enabled shows:
+The initial automated measurement reported 0% sink rate for DroPE because attention capture was disabled. Rerunning with eager attention enabled shows:
 
-| Metric | RoPE | DroPE | Ratio |
+| Metric | RoPE | DroPE | Notes |
 |--------|------|-------|-------|
-| Average sink rate | 96.6% | 1.6% | 60× reduction |
+| Average sink rate | 91.9% | 2.7% | 35× reduction |
 | Layers 2-30 sink rate | ~100% | 0% | Complete elimination |
-| Early layer (0-1) sink rate | 43-62% | 18-31% | ~2× reduction |
+| Layer 0 sink rate | 6% | 54% | DroPE higher (9×) |
+| Layer 1 sink rate | 2% | 31% | DroPE higher (19×) |
 
-The main finding remains valid: **DroPE eliminates attention sinks in layers 2+** and dramatically reduces them overall, explaining its robustness to BOS-MLP ablation.
+The main finding: **DroPE eliminates attention sinks in layers 2+** but compensates with increased sink activity in early layers. The overall 35× reduction explains its robustness to BOS-MLP ablation.
 
 ## Citation
 
