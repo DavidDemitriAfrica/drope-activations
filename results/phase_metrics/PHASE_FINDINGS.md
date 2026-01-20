@@ -1,126 +1,148 @@
 # Phase Metrics Analysis: RoPE vs DroPE
 
-## Executive Summary
+## Summary
 
-We analyzed Queipo-style phase metrics and performed ablation experiments to understand how DroPE reorganizes attention compared to RoPE. Our key finding:
+We extend our analysis with metrics from Queipo-de-Llano et al. (2025), who showed that transformer models develop "attention sinks" (tokens that receive high attention regardless of content) and "compression valleys" (low-entropy representations in middle layers). They trace both phenomena to massive activations in the residual stream.
 
-**Both RoPE and DroPE have nearly identical attention sink rates (~96-98%), but only RoPE is destroyed by BOS-MLP ablation.** BOS-MLP ablation causes catastrophic failure in RoPE (1249× PPL increase) but has zero effect on DroPE. This reveals that while both models attend to BOS, they use it fundamentally differently.
+**Main finding:** Both RoPE and DroPE have nearly identical attention sink rates (~97%), but only RoPE is destroyed by BOS-MLP ablation. This reveals that attention flowing to BOS does not imply functional dependence on BOS.
 
-## Results Summary
+| Model | Sink Rate | BOS-MLP Ablation |
+|-------|-----------|------------------|
+| RoPE  | 97.8%     | 1249× PPL increase |
+| DroPE | 95.6%     | 1.00× (no effect) |
 
-### Functional Impact of Interventions
+## Background
 
-| Model | Baseline PPL | BOS-MLP Ablation | Change |
-|-------|-------------|------------------|--------|
-| RoPE  | 10.2        | 12766 | **1249×↑** |
-| DroPE | 18.6        | 18.5  | **1.00×** (no change) |
+### Attention Sinks
 
-### Attention Sink Rates (Corrected Measurement)
+Attention sinks are tokens (typically BOS) that receive disproportionate attention across many heads. Queipo-de-Llano et al. define the sink rate as the fraction of attention heads where average attention to BOS exceeds a threshold τ=0.3.
 
-Using manual Q/K hook method to avoid NaN issues with DroPE's eager attention:
+### BOS-MLP Ablation
 
-| Layer Range | RoPE | DroPE |
-|-------------|------|-------|
-| 0 (first) | 66% | 54% |
-| 1 (early) | 78% | 31% |
-| 2-30 (middle/late) | 97-100% | 94-99% |
-| 31 (final) | 92% | 91% |
+The BOS token develops extreme activation norms in early layers via MLP processing. Ablating (zeroing) the MLP output for BOS at its "spike layer" reveals whether the model depends on whatever information is stored there.
+
+## Experiment 4: Attention Sinks and BOS-MLP Ablation
+
+### Methodology
+
+**Sink Rate Measurement:**
+
+Standard `output_attentions=True` produces NaN for DroPE (see Technical Notes below). We compute attention weights manually using forward hooks:
+
+```python
+# Hook into Q/K projections
+layer.self_attn.q_proj.register_forward_hook(capture_hook('q'))
+layer.self_attn.k_proj.register_forward_hook(capture_hook('k'))
+
+# Compute attention manually
+scale = head_dim ** -0.5
+attn_scores = torch.matmul(q, k.transpose(-2, -1)) * scale
+attn_weights = F.softmax(attn_scores.masked_fill(causal_mask, -inf), dim=-1)
+
+# Sink rate: fraction of heads with mean attention to BOS >= 0.3
+bos_attention = attn_weights[:, :, :, 0].mean(dim=2)  # average across positions
+sink_rate = (bos_attention >= 0.3).float().mean()
+```
+
+**BOS-MLP Ablation:**
+
+We zero the MLP output for the BOS token at the BOS spike layer (layer 1 for RoPE, layer 2 for DroPE):
+
+```python
+def bos_mlp_ablation_hook(module, input, output):
+    output[0, 0, :] = 0  # Zero BOS token's MLP output
+    return output
+
+model.layers[spike_layer].mlp.register_forward_hook(bos_mlp_ablation_hook)
+```
+
+### Results
+
+**Sink Rates by Layer:**
+
+| Layer | RoPE | DroPE |
+|-------|------|-------|
+| 0 | 66% | 54% |
+| 1 | 78% | 31% |
+| 2-30 | 97-100% | 94-99% |
+| 31 | 92% | 91% |
 | **Average** | **97.8%** | **95.6%** |
 
-**Both models have nearly identical sink rates.** The difference in BOS-MLP ablation impact cannot be explained by sink rate differences.
+Both models have high sink rates across nearly all layers.
 
-### Phase Metrics
+**BOS-MLP Ablation:**
+
+| Model | Baseline PPL | Ablated PPL | Change |
+|-------|--------------|-------------|--------|
+| RoPE  | 10.2 | 12,766 | **1249×** |
+| DroPE | 18.6 | 18.5 | **1.00×** |
+
+### Interpretation
+
+The results are striking: despite nearly identical sink rates, the models respond completely differently to BOS-MLP ablation.
+
+**RoPE:** Catastrophic failure. The model cannot function without BOS-MLP processing, suggesting BOS stores critical position-dependent information.
+
+**DroPE:** Zero effect. Despite 95.6% of heads attending to BOS, the information stored there is expendable.
+
+This means **sink rate ≠ functional importance**. Both models route attention to BOS, but only RoPE stores critical information there. DroPE has learned to make BOS a "garbage collector" that receives attention but stores nothing essential.
+
+## Other Phase Metrics
+
+### BOS Norm and Compression
 
 | Metric | RoPE | DroPE |
 |--------|------|-------|
 | BOS Spike Layer | 1 | 2 |
-| Peak BOS Norm | 982.1 (layer 23) | 632.2 (layer 26) |
-| Min Entropy (Compression Valley) | 0.0081 (layer 1) | 0.0895 (layer 2) |
+| Peak BOS Norm | 982 (layer 23) | 632 (layer 26) |
+| Min Entropy | 0.008 (layer 1) | 0.090 (layer 2) |
 
-## Key Findings
+DroPE has:
+- 35% lower peak BOS norm
+- 11× higher minimum entropy (less compressed representations)
 
-### 1. Sink Rate Is Not the Key Difference
+### Q/K Disruption (from Experiment 3)
 
-Both RoPE (97.8%) and DroPE (95.6%) have nearly identical attention sink rates. Despite high attention to BOS in both models, only RoPE catastrophically fails when BOS-MLP is ablated.
+| Model | Baseline PPL | Disrupted PPL | Change |
+|-------|--------------|---------------|--------|
+| RoPE | 1.30 | 25.6 | 6.7× |
+| DroPE | 1.49 | 5.46 | 29% |
 
-This means the critical difference is **what information is stored in BOS**, not how much attention flows to it.
+DroPE is more robust to Q/K massive value disruption, consistent with its reduced dependence on concentrated features.
 
-### 2. BOS-MLP Ablation Reveals Different BOS Functionality
+## Technical Notes: DroPE Compatibility
 
-| Model | BOS-MLP Ablation Impact |
-|-------|-------------------------|
-| RoPE | 1249× PPL increase - catastrophic failure |
-| DroPE | 1.00× - zero impact |
+DroPE requires specific handling:
 
-In RoPE, the BOS token at the spike layer (layer 1) encodes critical position-related information that the entire network depends on. Zeroing the MLP output removes this information and destroys the model.
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Eager attention NaN | DroPE produces NaN from layer 2+ with `attn_implementation="eager"` | Use SDPA (default) or manual Q/K hooks |
+| Padding CUDA errors | Index out of bounds with padded sequences | Use variable-length inputs |
 
-In DroPE, despite attention flowing to BOS, the information stored there is not critical for model function. This suggests DroPE has reorganized what information is stored in BOS, making it expendable.
+The eager attention issue appears to be a compatibility problem between DroPE's NoPE attention wrapper (which sets cos=1, sin=0 to nullify RoPE) and the transformers library's eager attention path.
 
-### 3. DroPE has More Isotropic Representations
+## Implications
 
-The entropy at the compression valley is 11× higher in DroPE (0.0895 vs 0.0081), indicating more isotropic (less compressed) representations. This suggests DroPE maintains richer, more distributed representations instead of collapsing information into specific tokens.
+1. **Attention sinks are not the key difference** between RoPE and DroPE. Both have ~97% sink rates.
 
-### 4. Q/K Disruption Impact
+2. **What matters is what's stored in BOS**, not how much attention flows there. RoPE uses BOS to encode position-dependent information; DroPE makes BOS expendable.
 
-| Model | Q/K Disruption Impact |
-|-------|----------------------|
-| RoPE | 6.7× PPL increase |
-| DroPE | 29% PPL increase |
+3. **DroPE achieves redundancy** by distributing critical information across the sequence rather than concentrating it in specific tokens.
 
-DroPE is more robust to Q/K massive value disruption, consistent with its less position-dependent attention patterns.
+4. **This explains the massive value findings**: DroPE's massive values appear vestigial because the model has reorganized to not depend on any single token or dimension.
 
-## Interpretation
+## Reproducibility
 
-### Why Is DroPE Immune to BOS-MLP Ablation?
+```bash
+# Compute sink rates (manual Q/K method)
+python scripts/fix_drope_sink_rates.py
 
-RoPE creates position-dependent attention patterns through rotary embeddings. The BOS token at position 0 develops unique rotational properties that make it special. The MLP at the BOS spike layer (layer 1) encodes critical positional information into BOS that all subsequent layers depend on.
-
-DroPE removes rotary embeddings, eliminating the positional asymmetry that makes BOS special. While attention still flows to BOS (perhaps due to the causal mask making it always visible), the information stored there is not critical. DroPE has learned to distribute critical information elsewhere in the sequence.
-
-### Implications for Understanding Transformers
-
-1. **Attention sink rate ≠ functional importance** - High attention to a token doesn't mean the token stores critical information
-2. **RoPE creates position-dependent critical tokens** - The BOS token becomes a critical repository for position information in RoPE
-3. **DroPE achieves redundancy** - By removing positional encoding, DroPE learns more distributed representations that don't depend on any single token
-
-## Experimental Notes
-
-### DroPE Eager Attention NaN Issue
-
-DroPE produces NaN values in hidden states and attention weights when using eager attention (`attn_implementation="eager"`). This is a compatibility issue between DroPE's NoPE attention wrapper and the transformers library's eager attention path.
-
-**Impact**: Standard `output_attentions=True` cannot be used for DroPE sink rate measurement.
-
-**Solution**: We compute attention weights manually using forward hooks on Q and K projection layers, then applying softmax(QK^T / sqrt(d)) ourselves. This produces valid attention weights.
-
-### Verification
-
-All key findings have been verified:
-- BOS-MLP ablation results confirmed with independent PPL measurements
-- Sink rates computed using manual hook method to avoid NaN issues
-- Both models tested under identical conditions
-
-## Methods
-
-### Phase Metrics (Queipo-de-Llano et al.)
-- **BOS Norm**: L2 norm of BOS token residual at each layer
-- **Entropy**: Normalized entropy of singular values from SVD
-- **Sink Rate**: Fraction of heads where average attention to BOS ≥ τ (0.3)
-
-### Interventions
-- **BOS-MLP Ablation**: Zero the MLP output for BOS token at BOS spike layer
-- **Q/K Disruption**: Replace massive Q/K values (>10 std) with mean (Jin-style)
-
-### Functional Evaluations
-- **Perplexity**: WikiText-2 samples
-
-## Citation
-
-```bibtex
-@techreport{africa2026massive,
-  title   = {Massive Activations in DroPE: BOS Attention Without BOS Dependence},
-  author  = {Africa, David},
-  year    = {2026},
-  url     = {https://github.com/DavidDemitriAfrica/drope-activations}
-}
+# Generate figures
+python scripts/create_phase_figures.py
 ```
+
+## References
+
+- Queipo-de-Llano et al. (2025) - "Attention Sinks and Compression Valleys in LLMs are Two Sides of the Same Coin" ([arXiv:2510.06477](https://arxiv.org/abs/2510.06477))
+- Jin et al. (2025) - "Massive Values in Self-Attention Modules" ([arXiv:2502.01563](https://arxiv.org/abs/2502.01563))
+- Gelberg et al. (2025) - "DroPE: Dropping Positional Embeddings" ([arXiv:2512.12167](https://arxiv.org/abs/2512.12167))
