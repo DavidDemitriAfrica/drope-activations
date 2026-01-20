@@ -4,7 +4,7 @@
 
 We analyzed Queipo-style phase metrics and performed ablation experiments to understand how DroPE reorganizes attention compared to RoPE. Our key finding:
 
-**Both RoPE and DroPE have high attention sink rates (~97%), but only RoPE is destroyed by BOS-MLP ablation.** BOS-MLP ablation causes catastrophic failure in RoPE (1249× PPL increase) but has zero effect on DroPE. This reveals that while both models attend to BOS, they use it fundamentally differently.
+**Both RoPE and DroPE have nearly identical attention sink rates (~96-98%), but only RoPE is destroyed by BOS-MLP ablation.** BOS-MLP ablation causes catastrophic failure in RoPE (1249× PPL increase) but has zero effect on DroPE. This reveals that while both models attend to BOS, they use it fundamentally differently.
 
 ## Results Summary
 
@@ -21,13 +21,13 @@ Using manual Q/K hook method to avoid NaN issues with DroPE's eager attention:
 
 | Layer Range | RoPE | DroPE |
 |-------------|------|-------|
-| 0 (first) | 88% | 78% |
-| 1 (early) | 91% | 31% |
-| 2-30 (middle/late) | ~100% | ~100% |
-| 31 (final) | 91% | 94% |
-| **Average** | **98.9%** | **96.7%** |
+| 0 (first) | 66% | 54% |
+| 1 (early) | 78% | 31% |
+| 2-30 (middle/late) | 97-100% | 94-99% |
+| 31 (final) | 92% | 91% |
+| **Average** | **97.8%** | **95.6%** |
 
-**Both models have similarly high sink rates.** The difference in BOS-MLP ablation impact cannot be explained by sink rate differences.
+**Both models have nearly identical sink rates.** The difference in BOS-MLP ablation impact cannot be explained by sink rate differences.
 
 ### Phase Metrics
 
@@ -41,7 +41,7 @@ Using manual Q/K hook method to avoid NaN issues with DroPE's eager attention:
 
 ### 1. Sink Rate Is Not the Key Difference
 
-Both RoPE and DroPE have ~97% attention sink rates - nearly identical. Despite high attention to BOS in both models, only RoPE catastrophically fails when BOS-MLP is ablated.
+Both RoPE (97.8%) and DroPE (95.6%) have nearly identical attention sink rates. Despite high attention to BOS in both models, only RoPE catastrophically fails when BOS-MLP is ablated.
 
 This means the critical difference is **what information is stored in BOS**, not how much attention flows to it.
 

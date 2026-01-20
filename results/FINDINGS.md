@@ -197,9 +197,60 @@ The stark contrast in passkey results (100% collapse vs 0% degradation) provides
 ![Figure 11](findings_figures/fig11_jin_summary.png)
 *Figure 11: Combined summary of Jin et al. replication results.*
 
-## 5. Discussion
+## 5. Experiment 4: Attention Sinks and BOS-MLP Ablation
 
-### 5.1 Summary of Findings
+### 5.1 Background
+
+Queipo-de-Llano et al. (2025) show that transformer models develop "attention sinks"—tokens (typically BOS) that receive high attention as a "garbage collector" for unused attention mass. They demonstrate that ablating the MLP output for BOS at specific layers causes catastrophic failures in some models.
+
+We hypothesized that DroPE might eliminate attention sinks since RoPE creates the positional asymmetry that makes BOS special.
+
+### 5.2 Method
+
+We compute attention sink rates using manual Q/K hooks (required because DroPE's eager attention produces NaN):
+
+```python
+# Hook into Q/K projections
+attn_scores = torch.matmul(q, k.T) * scale
+attn_weights = softmax(attn_scores.masked_fill(causal_mask, -inf))
+sink_rate = (attn_to_BOS >= 0.3).mean()
+```
+
+For BOS-MLP ablation, we zero the MLP output for the BOS token at the BOS spike layer.
+
+### 5.3 Results
+
+**Attention Sink Rates:**
+
+| Model | Average Sink Rate |
+|-------|-------------------|
+| RoPE  | 97.8% |
+| DroPE | 95.6% |
+
+Both models have nearly identical sink rates—contrary to our hypothesis.
+
+**BOS-MLP Ablation:**
+
+| Model | Baseline PPL | Ablated PPL | Change |
+|-------|--------------|-------------|--------|
+| RoPE  | 10.2 | 12,766 | **1249×** |
+| DroPE | 18.6 | 18.5 | **1.00×** |
+
+### 5.4 Key Finding
+
+**Sink rate ≠ functional dependence.** Both models send ~96-98% of attention to BOS, but only RoPE stores critical information there.
+
+- RoPE uses BOS to encode position-dependent information via the MLP
+- DroPE attends to BOS but stores nothing critical there
+- DroPE has learned to make BOS expendable despite high attention
+
+This explains why DroPE's massive values appear vestigial—the model has reorganized to distribute critical information across the sequence rather than concentrating it in specific tokens.
+
+See [phase_metrics/PHASE_FINDINGS.md](phase_metrics/PHASE_FINDINGS.md) for full details.
+
+## 6. Discussion
+
+### 6.1 Summary of Findings
 
 1. Massive values are encoded in projection weights during RoPE training
 2. DroPE recalibration reduces concentration (−39% Query, −11% Key) but reorganizes Layer 1
@@ -209,8 +260,9 @@ The stark contrast in passkey results (100% collapse vs 0% degradation) provides
    - Parametric accuracy **improves** when disrupted (−1.9% degradation)
    - Contextual degradation is 73% lower than RoPE (25% vs 94.3%)
    - Passkey retrieval is completely unaffected (0% degradation vs RoPE's 100%)
+6. **Both models have ~97% attention sink rates, but only RoPE depends on BOS-MLP** (1249× PPL increase vs 1.00×)
 
-### 5.2 Implications for Context Extension
+### 6.2 Implications for Context Extension
 
 DroPE enables longer contexts. Our findings suggest a mechanism:
 
@@ -218,7 +270,7 @@ DroPE enables longer contexts. Our findings suggest a mechanism:
 2. This concentration may create bottlenecks at long contexts
 3. DroPE distributes attention more evenly, potentially enabling better generalization to longer sequences
 
-## 6. Reproducibility
+## 7. Reproducibility
 
 ```bash
 python scripts/run_llama_comparison.py      # Experiment 1
@@ -236,7 +288,7 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | Text samples | 10 |
 | Random seeds | 10 |
 
-## 7. Summary
+## 8. Summary
 
 | Metric | RoPE | DroPE |
 |--------|------|-------|
@@ -247,6 +299,8 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | Contextual avg degradation | **94.3%** | 25.0% |
 | Passkey degradation | **100.0%** | **0.0%** |
 | Massive value reliance | 82× higher | baseline |
+| Attention sink rate | 97.8% | 95.6% |
+| BOS-MLP ablation | **1249× PPL** | **1.00×** |
 | Functional after disruption | No | Yes (improved) |
 
 ![Figure 5](findings_figures/fig5_combined_summary.png)
