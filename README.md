@@ -1,64 +1,48 @@
 # Massive Activations in DroPE
 
-Code and experiments investigating massive activations in DroPE (Dropping Positional Embeddings) models.
+Investigating how removing RoPE affects massive activations and attention sinks in language models.
 
-## Summary
+## Key Finding
 
-We compare Llama-2-7B with and without RoPE to understand how removing positional embeddings affects the concentrated activations ("massive values") that prior work identifies as critical for contextual understanding.
+**Both RoPE and DroPE have ~97% attention sink rates, but only RoPE depends on BOS-MLP processing.**
 
-**Main findings:**
-- DroPE reduces Query massive values by 39% and Key by 11%
-- RoPE models rely 82× more on massive values than DroPE (disruption causes 116,000% vs 1,400% perplexity increase)
-- DroPE reorganizes rather than uniformly reduces: Layer 1 has 37× more massive values in DroPE
+| Model | Sink Rate | BOS-MLP Ablation |
+|-------|-----------|------------------|
+| RoPE  | 98.9%     | 1249× PPL increase (catastrophic) |
+| DroPE | 96.7%     | 1.00× (no effect) |
 
-See [results/FINDINGS.md](results/FINDINGS.md) for full experimental details.
+This reveals that attention flowing to BOS does not imply functional dependence on BOS. DroPE has learned to make BOS expendable despite high attention to it.
 
-## Current Work: Phase Metrics Analysis
+## Results
 
-We are extending our analysis with Queipo-style phase metrics (from "Attention Sinks and Representation Compression Valleys"):
+See detailed findings in:
+- [results/FINDINGS.md](results/FINDINGS.md) - Massive value comparison (Jin et al. replication)
+- [results/phase_metrics/PHASE_FINDINGS.md](results/phase_metrics/PHASE_FINDINGS.md) - Phase metrics and BOS-MLP ablation
 
-### Motivation
+## DroPE Compatibility Notes
 
-Jin et al. showed that massive values in Q/K are critical for contextual knowledge, and Queipo-de-Llano et al. showed that early layers develop "attention sinks" (BOS tokens as garbage collectors) and "compression valleys" (anisotropic representations). We hypothesize these phenomena are related:
+DroPE requires specific handling due to compatibility issues:
 
-1. **RoPE creates massive values** → enables attention sinks → functional but brittle
-2. **DroPE removes RoPE** → different/fewer massive values → different attention patterns?
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| **Eager attention NaN** | DroPE produces NaN from layer 2+ with `attn_implementation="eager"` | Use SDPA (default) or compute attention manually via Q/K hooks |
+| **Padding CUDA errors** | Index out of bounds with padded sequences | Disable padding or use variable-length inputs |
 
-### Phase Metrics Being Computed
+### Computing Sink Rates for DroPE
 
-1. **BOS Norm & Ratio**: How much does the BOS token representation dominate?
-2. **Representation Entropy**: Do we see compression valleys (anisotropic middle layers)?
-3. **Attention Sink Rate**: What fraction of heads use BOS as a sink (τ=0.3)?
+Standard `output_attentions=True` fails for DroPE. Use manual computation:
 
-### Interventions
+```python
+# Hook into Q/K projections
+layer.self_attn.q_proj.register_forward_hook(capture_hook('q'))
+layer.self_attn.k_proj.register_forward_hook(capture_hook('k'))
 
-- **BOS-MLP Ablation**: Zero MLP output for BOS at the BOS spike layer
-- **Q/K Massive Disruption**: Replace massive values with mean (Jin-style)
-- **Combined**: Both interventions together
+# Compute attention manually
+attn_scores = torch.matmul(q, k.transpose(-2, -1)) * scale
+attn_weights = F.softmax(attn_scores.masked_fill(causal_mask, -inf), dim=-1)
+```
 
-### Key Questions
-
-- Does DroPE have attention sinks? If not, what replaces them?
-- Does removing BOS-MLP destroy DroPE models like it does RoPE models?
-- Are the "reorganized" massive values in DroPE Layer 1 serving the same function?
-
-## Background
-
-This work builds on:
-
-1. **Jin et al. (2025)** - "Massive Values in Self-Attention Modules are the Key to Contextual Knowledge Understanding" ([arXiv:2502.01563](https://arxiv.org/abs/2502.01563))
-   - Massive values in Q/K are concentrated in low-frequency dimensions
-   - These values enable contextual (not parametric) knowledge understanding
-   - Root cause: RoPE's effects on low-frequency channels
-
-2. **Gelberg et al. (2025)** - "DroPE: Dropping Positional Embeddings" ([arXiv:2512.12167](https://arxiv.org/abs/2512.12167))
-   - Removes RoPE from pretrained models via continued pretraining
-   - Enables context length extension without architectural changes
-
-3. **Queipo-de-Llano et al. (2025)** - "Attention Sinks and Representation Compression Valleys"
-   - BOS tokens serve as attention sinks in early layers
-   - Middle layers show compression valleys (anisotropic representations)
-   - BOS-MLP ablation causes catastrophic failures in some models
+See `scripts/fix_drope_sink_rates.py` for full implementation.
 
 ## Setup
 
@@ -71,14 +55,17 @@ pip install -r requirements.txt
 ## Running Experiments
 
 ```bash
-# Massive value comparison (RoPE vs DroPE)
+# Massive value comparison
 python scripts/run_llama_comparison.py
 
-# Disruption experiment (10 seeds)
+# Disruption experiment
 python scripts/run_disruption_rigorous.py
 
-# Phase metrics analysis (BOS norm, entropy, sink rates)
+# Phase metrics (BOS norm, entropy, sink rates)
 python scripts/run_phase_metrics.py
+
+# Fix DroPE sink rates (manual Q/K method)
+python scripts/fix_drope_sink_rates.py
 
 # Generate figures
 python scripts/create_findings_figures.py
@@ -95,37 +82,26 @@ drope-activations/
 │   └── utils/               # Model loading
 ├── scripts/                 # Experiment scripts
 ├── results/
-│   ├── FINDINGS.md          # Full writeup with figures
-│   └── findings_figures/    # Publication figures
+│   ├── FINDINGS.md          # Massive value findings
+│   ├── findings_figures/    # Figures for FINDINGS.md
+│   └── phase_metrics/       # Phase metrics results
 ├── DroPE/                   # Submodule: SakanaAI DroPE code
-└── Rope_with_LLM/           # Submodule: Jin et al. analysis code
+└── Rope_with_LLM/           # Submodule: Jin et al. code
 ```
 
 ## Citation
 
 ```bibtex
 @techreport{africa2026massive,
-  title   = {Massive Activations in DroPE: Evidence for Attention Reorganization},
+  title   = {Massive Activations in DroPE: BOS Attention Without BOS Dependence},
   author  = {Africa, David},
   year    = {2026},
   url     = {https://github.com/DavidDemitriAfrica/drope-activations}
 }
 ```
 
-Please also cite the underlying work:
+## References
 
-```bibtex
-@article{jin2025massive,
-  title   = {Massive Values in Self-Attention Modules are the Key to Contextual Knowledge Understanding},
-  author  = {Jin, Mingyu and Sun, Kai and others},
-  journal = {ICML},
-  year    = {2025}
-}
-
-@article{gelberg2025drope,
-  title   = {DroPE: Dropping Positional Embeddings for Zero-Shot Long-Context Extension},
-  author  = {Gelberg, Tal and others},
-  journal = {arXiv preprint arXiv:2512.12167},
-  year    = {2025}
-}
-```
+- Jin et al. (2025) - [Massive Values in Self-Attention Modules](https://arxiv.org/abs/2502.01563)
+- Gelberg et al. (2025) - [DroPE: Dropping Positional Embeddings](https://arxiv.org/abs/2512.12167)
+- Queipo-de-Llano et al. (2025) - Attention Sinks and Representation Compression Valleys
