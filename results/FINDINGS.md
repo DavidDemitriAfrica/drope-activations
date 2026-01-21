@@ -532,9 +532,84 @@ We analyze attention patterns across 8 diverse texts:
 
 This demonstrates that **attention pattern similarity does not imply functional equivalence**. The models route attention identically but process it completely differently.
 
-## 9. Discussion
+## 9. Experiment 8: Layer 1 Attention Content Analysis
 
-### 9.1 Summary of Findings
+### 9.1 Motivation
+
+Experiment 6 revealed a striking asymmetry: RoPE Layer 1 MLP is 725× more critical than attention (1815× vs 2.5×), while DroPE shows equal criticality (~200× each). Why is DroPE's Layer 1 attention suddenly critical when RoPE's is not?
+
+### 9.2 Method
+
+We capture Layer 1 attention and MLP outputs to analyze what each component actually writes to the residual stream:
+
+```python
+class Layer1ContentCapture:
+    """Capture Layer 1 outputs to analyze residual stream contributions."""
+
+    def __init__(self, model):
+        # Hook attention output (after o_proj)
+        # Hook MLP output
+        # Capture hidden states before and after layer 1
+```
+
+Metrics:
+- **Attention output norm**: L2 norm of attention output tensor
+- **MLP output norm**: L2 norm of MLP output tensor
+- **Contribution ratio**: Relative magnitude of attention vs MLP to residual stream
+- **Q/K norms**: Magnitude of query and key projections
+
+### 9.3 Results
+
+**Residual Stream Contributions**
+
+| Metric | RoPE | DroPE | Ratio |
+|--------|------|-------|-------|
+| Attention output norm | 1.52 | **79.19** | **52×** |
+| MLP output norm | 176.30 | 36.27 | 0.2× |
+| **Attention contribution** | **0.9%** | **68.8%** | **76×** |
+| **MLP contribution** | **99.1%** | **31.2%** | 0.3× |
+
+**Q/K Activation Norms**
+
+| Metric | RoPE | DroPE | Ratio |
+|--------|------|-------|-------|
+| Q norm | 45.5 | **6,586** | **145×** |
+| K norm | 52.0 | **5,514** | **106×** |
+
+### 9.4 Key Finding
+
+**DroPE has completely inverted the attention/MLP balance at Layer 1.**
+
+- **RoPE**: Attention contributes only 0.9% to the residual stream; MLP dominates at 99.1%
+- **DroPE**: Attention contributes 68.8% to the residual stream; MLP is only 31.2%
+
+This explains the ablation asymmetry from Experiment 6:
+- RoPE attention ablation (2.5× PPL) has minimal impact because attention contributes only 0.9%
+- DroPE attention ablation (201× PPL) is catastrophic because attention contributes 68.8%
+
+### 9.5 The Q/K Magnitude Connection
+
+DroPE's massive Q/K norms (145× and 106× larger than RoPE) directly cause the increased attention output. The attention mechanism:
+
+```
+attention_output = softmax(Q @ K.T / sqrt(d)) @ V @ W_o
+```
+
+With Q/K norms ~100× larger, the attention scores before softmax are much larger, creating sharper attention patterns. The resulting attention output has 52× the magnitude of RoPE's.
+
+### 9.6 Interpretation
+
+DroPE compensates for the removal of positional embeddings by:
+
+1. **Amplifying Q/K projections** at Layer 1 (~100× larger norms)
+2. **Shifting processing from MLP to attention** (0.9% → 68.8% contribution)
+3. **Creating strong initial attention patterns** via massive activations
+
+This is the mechanistic explanation for the "positional substitute" hypothesis: without RoPE's positional encoding, DroPE uses extreme Q/K values at Layer 1 to establish position-independent attention routing that serves a similar organizational function.
+
+## 10. Discussion
+
+### 10.1 Summary of Findings
 
 1. Massive values are encoded in projection weights during RoPE training
 2. DroPE recalibration reduces concentration (−39% Query, −11% Key) but reorganizes Layer 1
@@ -551,8 +626,10 @@ This demonstrates that **attention pattern similarity does not imply functional 
 10. **Layer 1 MLP ablation is 725× more critical for RoPE than Layer 1 attention** (1815× vs 2.5×)
 11. **DroPE shows uniform Layer 1 criticality** — both MLP and attention equally important (~200×)
 12. **Attention patterns are nearly identical** (~93% sink heads) yet functional importance differs completely
+13. **DroPE inverts Layer 1 attention/MLP balance** — attention contributes 68.8% vs RoPE's 0.9%
+14. **DroPE Q/K norms are 100× larger at Layer 1** (6586/5514 vs 45/52)
 
-### 9.2 Implications for Context Extension
+### 10.2 Implications for Context Extension
 
 DroPE enables longer contexts. Our findings suggest a mechanism:
 
@@ -560,7 +637,7 @@ DroPE enables longer contexts. Our findings suggest a mechanism:
 2. This concentration may create bottlenecks at long contexts
 3. DroPE distributes attention more evenly, potentially enabling better generalization to longer sequences
 
-## 10. Reproducibility
+## 11. Reproducibility
 
 ```bash
 python scripts/run_llama_comparison.py      # Experiment 1
@@ -573,6 +650,7 @@ python scripts/run_functional_tests.py      # Experiment 4 (functional tests)
 python scripts/run_bos_write_analysis.py    # Experiment 5 (BOS value analysis)
 python scripts/run_layer1_ablation.py       # Experiment 6 (Layer 1 ablation)
 python scripts/run_attention_analysis.py    # Experiment 7 (attention patterns)
+python scripts/run_layer1_content_analysis.py # Experiment 8 (Layer 1 content)
 python scripts/create_phase_figures.py      # Phase figures
 python scripts/create_bos_write_figures.py  # BOS write figures
 python scripts/create_attention_figures.py  # Attention figures
@@ -588,7 +666,7 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | Text samples | 10 |
 | Random seeds | 10 |
 
-## 11. Summary
+## 12. Summary
 
 | Metric | RoPE | DroPE |
 |--------|------|-------|
@@ -610,11 +688,14 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | **Layer 1 Attn ablation PPL** | **2.5×** | **201×** |
 | **Layer 1 MLP/Attn ratio** | **725:1** | **1:1** |
 | Sink heads (attention) | 93.5% | 93.1% |
+| **Layer 1 Attn contribution** | **0.9%** | **68.8%** |
+| **Layer 1 Q norm** | 45.5 | **6,586** |
+| **Layer 1 K norm** | 52.0 | **5,514** |
 
 ![Figure 5](findings_figures/fig5_combined_summary.png)
 *Figure 5: Summary of both experiments.*
 
-## 12. Citation
+## 13. Citation
 
 ```bibtex
 @techreport{africa2026massive,
@@ -625,7 +706,7 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 }
 ```
 
-## 13. References
+## 14. References
 
 Jin, M., Sun, K., et al. (2025). Massive Values in Self-Attention Modules are the Key to Contextual Knowledge Understanding. ICML.
 
