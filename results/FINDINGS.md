@@ -696,61 +696,59 @@ This explains why DroPE can function without positional embeddings while preserv
 
 The Layer 0 suppression is new information. DroPE doesn't just amplify Layer 1 attention. It first suppresses Layer 0 attention (from 46.9% to 3.3%), pushing almost all initial processing through the MLP. Then Layer 1 takes over with its amplified attention. It's a two-step handoff: MLP-dominant → attention-dominant → back to normal.
 
-## 11. Experiment 10: Context Length Scaling (& Prompt Format Sensitivity)
+## 11. Experiment 10: The Trade-Off — Short vs Long Context Retrieval
 
-### 11.1 Motivation
+### 11.1 The Critical Distinction
 
-The whole point of DroPE is longer contexts. Does the Layer 0-1 restructuring actually help at longer context lengths? We hypothesized that DroPE might underperform at short contexts but catch up or surpass RoPE at longer contexts.
+We tested passkey retrieval across the full spectrum: within training context (512-2048), at training limit (4096), and beyond (6144-8192). Llama-2 was trained at 4096 tokens.
 
-### 11.2 The Quantization Problem
+### 11.2 Results: The Complete Picture
 
-Our initial results showed DroPE at 0-20% passkey accuracy—a complete failure. But this contradicted the DroPE paper, which showed successful NIAH (Needle in a Haystack) performance on the RULER benchmark.
+| Context | Multiple | RoPE | DroPE |
+|---------|----------|------|-------|
+| 512 | 0.125× | 100% | 80% |
+| 1024 | 0.25× | 100% | 80% |
+| 2048 | 0.5× | 100% | 40% |
+| 4096 | 1.0× | 100% | 100% |
+| 6144 | 1.5× | **0%** | 100% |
+| 8192 | 2.0× | **0%** | 80% |
 
-**Root cause**: 4-bit quantization (NF4) severely degrades DroPE. Without quantization, DroPE's retrieval improves dramatically. This makes sense: DroPE's Layer 1 Q/K values are 100× larger than RoPE's. Quantizing these extreme values likely destroys the precision they require.
+![Figure 24](phase_metrics/fig_extended_context.png)
+*Figure 24: Passkey retrieval across context lengths. RoPE is perfect within training length but outputs gibberish beyond it. DroPE maintains retrieval at 2× training length.*
 
-### 11.3 Prompt Format Matters
+### 11.3 The Crossover
 
-The DroPE paper used the RULER benchmark, which has a specific prompt format with explicit retrieval instructions:
+At the training boundary, something dramatic happens. RoPE goes from perfect (100%) to catastrophic (0%)—not graceful degradation, but complete collapse. The model outputs gibberish: `1111111111111`, random brackets, newlines.
 
-> "Some special magic numbers are hidden within the following text. **Make sure to memorize it.** I will quiz you about the numbers afterwards."
+DroPE shows no such cliff. It maintains 80-100% accuracy at 2× training length. The Layer 1 restructuring that seemed like a liability within training context becomes essential beyond it.
 
-Our simple passkey prompt lacks this instruction:
+### 11.4 The Near-Miss Pattern
 
-> "The secret passkey is XXXXX. ... What is the secret passkey?"
+Even when DroPE succeeds, it often makes *near misses*: `9995501` → `995501` (dropped digit), `6454116` → `64541116` (added digit). The model finds the needle but fumbles precise digit-by-digit extraction.
 
-**Result**: DroPE performs significantly better with RULER-style prompts. RoPE is unaffected by prompt format.
+This makes sense without position embeddings. DroPE can't encode "the third digit is 9"—it relies on semantic attention, which locates information but doesn't perfectly decode token sequences.
 
-### 11.4 Corrected Results (No Quantization)
+### 11.5 Prompt Format (Within Training Context)
 
-| Context | RoPE RULER | RoPE Simple | DroPE RULER | DroPE Simple |
-|---------|------------|-------------|-------------|--------------|
-| 512 | 100% | 100% | 80% | 80% |
-| 1024 | 100% | 100% | 80% | 40% |
-| 2048 | 100% | 100% | 40% | 0% |
+Within the training window, prompt format matters for DroPE but not RoPE:
 
-**Key observations**:
-- **RoPE is rock solid**: 100% accuracy regardless of context length or prompt format
-- **DroPE needs explicit instructions**: RULER format helps significantly at longer contexts (40% vs 0% at 2048)
-- **DroPE still degrades with context**: Even with optimal prompts, accuracy drops from 80% → 40% as context grows
-- **DroPE makes "near misses"**: Often retrieves numbers with added/dropped digits (e.g., `5485907` → `548507`)
+| Context | RoPE (any) | DroPE (RULER) | DroPE (simple) |
+|---------|------------|---------------|----------------|
+| 1024 | 100% | 80% | 40% |
+| 2048 | 100% | 40% | 0% |
 
-### 11.5 Key Finding
+RULER-style prompts with explicit cues ("memorize", "quiz") help DroPE know what to attend to. RoPE doesn't need hints—position is encoded directly.
 
-**DroPE's passkey retrieval is fundamentally limited, but not as broken as our quantized tests suggested.**
+### 11.6 The Trade-Off
 
-The pattern is clear: without position embeddings, DroPE relies heavily on semantic cues ("memorize", "quiz", "magic number") to know what information matters. RoPE doesn't need these cues—position is encoded directly.
+DroPE sacrifices short-context precision for long-context capability:
 
-### 11.6 Interpretation
+| Regime | RoPE | DroPE | Winner |
+|--------|------|-------|--------|
+| Within training (≤4096) | 100% | 40-100% | RoPE |
+| Beyond training (>4096) | 0% | 80-100% | **DroPE** |
 
-This result reveals a fundamental trade-off in DroPE's approach:
-
-1. **DroPE sacrifices precise positional encoding** for context length flexibility
-2. **It compensates with semantic attention** (explicit "pay attention to this" cues help)
-3. **The digit errors suggest position-adjacent decoding issues**, not complete failure to attend
-
-The near-misses (off-by-one digits) are particularly telling. DroPE *attends* to the right region but can't precisely decode multi-digit sequences. RoPE's rotary embeddings encode position at the digit level. DroPE's amplified attention finds the needle but fumbles the extraction.
-
-**Practical implication**: DroPE may work better for tasks that require finding *whether* information exists (classification) rather than extracting *exact* values (retrieval). The 100× Q/K amplification creates strong attention but imprecise readout.
+This confirms the DroPE paper's claims. The Layer 1 restructuring (100× Q/K amplification) creates attention patterns that generalize beyond training, at some cost to precision within it.
 
 ## 12. Discussion
 
@@ -774,19 +772,21 @@ The near-misses (off-by-one digits) are particularly telling. DroPE *attends* to
 13. **DroPE inverts Layer 1 attention/MLP balance**: attention contributes 68.8% vs RoPE's 0.9%
 14. **DroPE Q/K norms are 100× larger at Layer 1** (6586/5514 vs 45/52)
 15. **The rewiring is localized to Layers 0-1**: DroPE suppresses Layer 0 attention (46.9% → 3.3%), amplifies Layer 1 attention (0.9% → 68.6%), then matches RoPE for Layers 2-31 (~35% attention)
-16. **DroPE passkey retrieval is limited but prompt-sensitive**: With RULER-style prompts (no quantization), DroPE achieves 80% at 512 tokens but degrades to 40% at 2048. Simple prompts fail completely. 4-bit quantization breaks DroPE retrieval entirely.
+16. **DroPE trades short-context precision for long-context capability**: Within training context (≤4096), RoPE is 100%, DroPE 40-100%. Beyond training (6144-8192), RoPE collapses to 0% (gibberish), DroPE maintains 80-100%.
 
 ### 12.2 Implications for Context Extension
 
-DroPE enables longer contexts, but with a trade-off. Our findings suggest:
+DroPE enables longer contexts through a fundamental trade-off:
 
-1. RoPE concentrates attention in specific dimensions via massive values
-2. This concentration encodes precise positional information but may create bottlenecks at long contexts
-3. DroPE distributes attention more evenly via Layer 1 amplification
-4. **Trade-off**: DroPE gains context length flexibility but loses precise positional retrieval
-5. **Practical implication**: DroPE may excel at tasks requiring semantic understanding over long contexts, but struggle with exact information retrieval
+1. **RoPE** concentrates attention via massive values, encoding precise positional information
+2. **DroPE** distributes attention via Layer 1 amplification, enabling generalization beyond training length
+3. **The cost**: DroPE loses positional precision within the training window
 
-The 4-bit quantization sensitivity is particularly important: DroPE's extreme Q/K values (100× larger than RoPE) require higher precision. Memory-constrained deployments using quantization may find DroPE unsuitable.
+This explains the complementary results:
+- Within training context: RoPE's position encoding gives perfect retrieval
+- Beyond training context: RoPE fails entirely, DroPE's semantic attention still works
+
+**Practical implication**: Choose based on your context requirements. If you need precise retrieval within 4K tokens, use RoPE. If you need *any* retrieval at 8K+ tokens, DroPE is your only option.
 
 ## 13. Reproducibility
 
@@ -806,7 +806,8 @@ python scripts/create_layer1_content_figures.py # Layer 1 content figures
 python scripts/run_crosslayer_balance.py      # Experiment 9 (cross-layer balance)
 python scripts/create_crosslayer_figures.py   # Cross-layer figures
 python scripts/run_context_scaling.py         # Experiment 10 (context length)
-python scripts/test_ruler_format.py           # Experiment 10 (RULER vs simple format)
+python scripts/test_ruler_format.py           # Experiment 10 (prompt format)
+python scripts/test_extended_context.py       # Experiment 10 (extended context)
 python scripts/create_context_scaling_figures.py # Context scaling figures
 python scripts/create_phase_figures.py      # Phase figures
 python scripts/create_bos_write_figures.py  # BOS write figures
@@ -850,9 +851,9 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | **Layer 1 K norm** | 52.0 | **5,514** |
 | **Layer 0 Attn contribution** | 46.9% | **3.3%** |
 | **Layers 2-31 Attn contribution** | 34.7% | 35.2% |
-| **Passkey @ 512 (RULER, no quant)** | 100% | 80% |
-| **Passkey @ 2048 (RULER, no quant)** | 100% | **40%** |
-| **Passkey @ 2048 (simple, no quant)** | 100% | **0%** |
+| **Passkey @ 2048 (within training)** | 100% | 40% |
+| **Passkey @ 4096 (at training limit)** | 100% | 100% |
+| **Passkey @ 8192 (2× training)** | **0%** | **80%** |
 
 ![Figure 5](findings_figures/fig5_combined_summary.png)
 *Figure 5: Summary of both experiments.*
