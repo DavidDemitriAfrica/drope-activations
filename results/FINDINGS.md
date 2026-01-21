@@ -4,45 +4,45 @@ David Africa, 2026
 
 ## The Story So Far
 
-If you crack open a language model and look at what the attention mechanism is actually doing, you'll find something odd. Certain dimensions in the Query and Key tensors have values that are just... huge. Not a little bigger than average. Orders of magnitude bigger. Jin et al. (2025) called these "massive values" and discovered something important about them: they're not noise. They're load-bearing. Zero them out and the model can still tell you that Paris is in France (it memorized that), but it can no longer figure out that "he" in sentence five refers to "John" in sentence two. The model loses its ability to reason about context.
+If you crack open a language model and look at what the attention mechanism is actually doing, you'll find certain dimensions in the Q and K tensors which have massive activations, orders of magnitude bigger than neighbors. Jin et al. (2025) called these "massive values" and discovered that they're load-bearing for the model's ability to reason about context.
 
-Where do these massive values come from? RoPE. That's the positional encoding scheme that most modern language models use to keep track of where tokens are in a sequence. The massive values appear to be RoPE's way of marking certain dimensions as "positionally important," a kind of infrastructure the model builds during training to handle the bookkeeping of what-came-before-what.
+These massive values come from RoPE, which is the positional encoding scheme that most modern language models use to keep track of where tokens are in a sequence. The massive values appear to be RoPE's way of marking certain dimensions as "positionally important," a kind of infrastructure the model builds during training to handle the bookkeeping of what-came-before-what.
 
-This raised a question we couldn't stop thinking about. Gelberg et al. (2025) showed you can take a pretrained model, surgically remove RoPE, do some recalibration training, and the model keeps working. They called this DroPE. But wait. If massive values come from RoPE, and massive values are essential for contextual understanding, how is this possible? How can you remove the foundation and have the building stay standing?
+Gelberg et al. (2025) showed you can take a pretrained model, remove RoPE, do some continued pretraining, and the model keeps working. They called this DroPE. 
 
-We went looking for answers. What we found was weirder than we expected.
+But wait. If massive values come from RoPE, and massive values are essential for contextual understanding, how is this possible? Or: how can you remove the foundation and have the building stay standing?
 
-## The Puzzle
+## One Weird Paradox
 
-First, the obvious thing to check: do DroPE models still have massive values? Yes. Fewer of them (39% reduction in Query, 11% in Key), but they're still there. What's interesting is *where* they moved. In RoPE, massive values are spread across layers. In DroPE, they've concentrated. Layer 1 alone has 37 times more massive values than its RoPE counterpart. The later layers have 60% fewer. It's like the model decided to pile all its furniture into the entryway.
+First, the obvious thing to check: do DroPE models still have massive values? Yes. Fewer of them (39% reduction in Query, 11% in Key), but they're still there. What's interesting, actually, is where they moved. In RoPE, massive values are spread across layers. In DroPE, they've concentrated in layer 1, which has 37 times more massive values than its RoPE counterparts, whereas the later layers have 60% fewer. Kind of like if the model decided to pile all its furniture into the entryway.
 
-Then we started breaking things, which is the fun part of interpretability research. We zeroed out the massive value dimensions to see what would happen. In RoPE, this is catastrophic. Perplexity goes from 1.3 to 1,508. The model is cooked. In DroPE? Perplexity goes from 1.5 to 22.7. Degraded, sure, but functional. RoPE depends on these values 82 times more than DroPE does.
+Then we started breaking things, which is the fun part of interp. First, we zeroed out the massive value dimensions to see what would happen, which was catastrophic for RoPE, but not so bad for DroPE. RoPE depends on these values 82 times more than DroPE does.
 
-The functional tests made this even starker. Jin et al. had shown that breaking massive values in RoPE hurts contextual tasks (reading comprehension, following references) way more than parametric tasks (recalling memorized facts). We replicated this: 94% degradation on contextual, 25% on parametric. But DroPE flipped the script. Contextual tasks only degraded 25%. And here's the weird part: parametric accuracy *improved* slightly when we broke the massive values. As if they were getting in the way.
+We did some functional tests to make this clearer-- in their paper, Jin et al. showed that breaking massive values in RoPE hurts contextual tasks (reading comprehension, following references) significantly more than parametric tasks (recalling memorized facts). We replicated this result for RoPE, but found that DRoPE had a different efect once you did this. Contextual tasks only degraded 25%, and parametric accuracy even improved slightly when we broke the massive values (as if they were getting in the way...)
 
-The cleanest demonstration was passkey retrieval. You hide a 5-digit number in a sea of irrelevant text and ask the model to find it. Pure contextual reasoning, no memorization possible. RoPE nails it: 100% accuracy. Break the massive values: 0%. Total collapse. DroPE gets 60% at baseline, and with massive values broken: still 60%. The massive values aren't doing *anything* for contextual retrieval here. They're vestigial. Architectural appendixes.
+The cleanest demonstration was passkey retrieval, where you hide a 5-digit number in a sea of irrelevant text and ask the model to find it. This is a purely contextual task, and baseline RoPE nails it: 100% accuracy, but totally collapses to 0% when you zero out the massive values: 0%. DroPE gets 60% at baseline, and with massive values broken, still gets 60%. So, the claim is: massive values in RoPE are vestigial.
 
-## The Deeper Mystery
+## Looking at this deeper
 
-So DroPE doesn't need its massive values. That's strange enough. But here's what kept us up at night: the two models look almost identical from the outside.
+So, DroPE doesn't need its massive values. This is strange enough. Now, this other paper by Quiepo-de-Llano et al. (2025) examines the relationship between attention sinks and compression valleys, claiming they relate to massive activations, and have some metrics that use the emergence of these empirical phenomena. So, we try this too. But the problem is this: the two models look almost identical from the outside.
 
-We measured attention patterns across all 32 layers and 32 heads. Both models have roughly 93% "sink heads," meaning heads that primarily attend to the first token (the BOS token, in the jargon). Both models route attention the same way. If you just looked at where attention flows, you'd think these were the same model. Yet one of them dies when you touch its massive values and the other doesn't care.
+We measured attention patterns across all 32 layers and 32 heads, and both models have roughly 93% "sink heads," meaning heads that primarily attend to the first token (the BOS token, in the jargon). Both models route attention the same way, such that if you just looked at where attention flows, you'd think these were the same model. Yet one of them dies when you touch its massive values and the other doesn't care.
 
-The answer, it turns out, is in Layer 1. And it's not subtle.
+The answer, it turns out, is in Layer 1. And it's quite obvious!
 
-In RoPE, Layer 1 is basically an MLP layer that happens to have some attention machinery attached. The attention mechanism contributes 0.9% to the residual stream. The MLP contributes 99.1%. If you ablate the MLP, perplexity explodes by 1,815x. If you ablate attention, perplexity only increases 2.5x. The attention is almost decorative.
+In RoPE, Layer 1 is basically an MLP layer that happens to have some attention machinery attached. The attention mechanism contributes 0.9% to the residual stream, while the MLP contributes 99.1% in terms of magnitude. If you ablate the MLP, perplexity explodes by 1,815x, and if you ablate attention, perplexity only increases 2.5x, so the attention is almost decorative.
 
-DroPE has completely inverted this. Attention now contributes 68.8% to the residual stream. The MLP contributes 31.2%. Both matter equally. Ablate either one and you get about 200x perplexity increase.
+DroPE completely inverted this, and in layer 1, attention now contributes 68.8% to the residual stream, while the MLP contributes 31.2%. Both matter equally to downstream performance, where if you ablate either one and you get about 200x perplexity increase.
 
-How did DroPE make attention suddenly important? It turned up the volume. Way up. RoPE Layer 1 has Query norms around 45 and Key norms around 52. DroPE Layer 1 has Query norms around 6,586 and Key norms around 5,514. That's not a typo. DroPE's Q/K projections are *100 times larger*. These massive projections create attention patterns so strong that they dominate what gets written to the residual stream.
+How did DroPE make attention suddenly important? It turned up the volume, to quote my grandmother watching television. RoPE Layer 1 has Query norms around 45 and Key norms around 52. DroPE Layer 1 has Query norms around 6,586 and Key norms around 5,514, which means DroPE's Q/K projections are 100 times larger. These massive projections create attention patterns so strong that they dominate what gets written to the residual stream!
 
 ## What This Means
 
-Here's the picture that emerges. When you remove RoPE, you're taking away the model's built-in system for encoding position. The model has to compensate somehow, and what it does is remarkable: it completely restructures its first layer. Instead of using RoPE to sprinkle positional information across 32 layers via massive values, DroPE cranks up its Layer 1 attention to eleven and does all the positional bookkeeping upfront, in one shot, through brute-force signal strength.
+So what picture does this give us? When you remove RoPE, you taking away the model's built-in system for encoding position, and the model has to compensate somehow, and what it does is remarkable: it completely restructures its first layer. Instead of using RoPE to sprinkle positional information across 32 layers via massive values, DroPE cranks up its Layer 1 attention to eleven and does all the positional bookkeeping upfront, in one shot, through signal magnitude.
 
-The massive values that remain in DroPE are ghosts. They persist because the weight matrices that create them were inherited from the original RoPE model, and recalibration didn't fully eliminate them. But they're not doing anything useful. They might even be causing interference, which would explain the occasional accuracy improvements when we zero them out.
+Then, I claim that the massive values that remain in DroPE are ghosts, which persist because the weight matrices that create them were inherited from the original RoPE model, and recalibration didn't fully eliminate them. But they're not doing anything useful. They might even be causing interference, which would explain the occasional accuracy improvements when we zero them out.
 
-This matters for context length extension, which is the whole point of DroPE. RoPE concentrates critical information in specific dimensions, and there's reason to think this creates bottlenecks at long contexts. DroPE spreads things out. Whether this actually helps at 32K or 128K tokens is a question we haven't answered yet, but the architectural difference is real.
+This matters for context length extension, which is the whole point of DroPE. RoPE concentrates critical information in specific dimensions, and there's reason to think this creates bottlenecks at long contexts. DroPE spreads things out, and whether this actually helps at 32K or 128K tokens is a question we haven't answered yet, but the architectural difference is at least pretty clear.
 
 The rest of this document presents the experiments in detail.
 
