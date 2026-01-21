@@ -696,9 +696,52 @@ This explains why DroPE can function without positional embeddings while preserv
 
 The Layer 0 suppression is new information. DroPE doesn't just amplify Layer 1 attention. It first suppresses Layer 0 attention (from 46.9% to 3.3%), pushing almost all initial processing through the MLP. Then Layer 1 takes over with its amplified attention. It's a two-step handoff: MLP-dominant → attention-dominant → back to normal.
 
-## 11. Discussion
+## 11. Experiment 10: Context Length Scaling
 
-### 11.1 Summary of Findings
+### 11.1 Motivation
+
+The whole point of DroPE is longer contexts. Does the Layer 0-1 restructuring actually help at longer context lengths? We hypothesized that DroPE might underperform at short contexts but catch up or surpass RoPE at longer contexts.
+
+### 11.2 Method
+
+We test passkey retrieval at 512, 1024, 2048, and 4096 tokens. The passkey (a 5-digit number) is hidden at a random position in filler text, and the model must retrieve it.
+
+### 11.3 Results
+
+| Context Length | RoPE | DroPE | Difference |
+|----------------|------|-------|------------|
+| 512 | 100% | 20% | -80% |
+| 1024 | 95% | 20% | -75% |
+| 2048 | 100% | 5% | -95% |
+| 4096 | 100% | 0% | -100% |
+
+![Figure 24](phase_metrics/fig_context_scaling.png)
+*Figure 24: Passkey retrieval by context length. RoPE maintains near-perfect accuracy. DroPE fails completely and gets worse at longer contexts.*
+
+![Figure 25](phase_metrics/fig_context_scaling_line.png)
+*Figure 25: The gap between RoPE and DroPE widens as context length increases.*
+
+### 11.4 Key Finding
+
+**DroPE completely fails at passkey retrieval, and it gets worse at longer contexts.**
+
+This is the opposite of what we hypothesized. The Layer 0-1 restructuring that allows DroPE to function for general language modeling is not sufficient for needle-in-haystack retrieval. RoPE's positional encoding provides something that DroPE's 100x Q/K amplification cannot replicate.
+
+### 11.5 Interpretation
+
+This result suggests a fundamental limitation of DroPE's approach:
+
+1. **DroPE's restructuring helps with local coherence** (perplexity, fluent generation)
+2. **But it fails at long-range retrieval** (finding specific information in context)
+3. **The failure worsens with context length**, suggesting the problem is not just noise but a systematic inability to encode position
+
+The massive Q/K values at Layer 1 may create strong attention patterns, but they don't encode *where* tokens are. Without positional information, the model cannot reliably retrieve a specific piece of information from a specific location.
+
+This explains the earlier passkey results (60% vs 100% at baseline): DroPE's 60% accuracy likely comes from cases where the passkey happens to be in a position that the model attends to by chance, not from actual positional retrieval.
+
+## 12. Discussion
+
+### 12.1 Summary of Findings
 
 1. Massive values are encoded in projection weights during RoPE training
 2. DroPE recalibration reduces concentration (−39% Query, −11% Key) but reorganizes Layer 1
@@ -718,8 +761,9 @@ The Layer 0 suppression is new information. DroPE doesn't just amplify Layer 1 a
 13. **DroPE inverts Layer 1 attention/MLP balance**: attention contributes 68.8% vs RoPE's 0.9%
 14. **DroPE Q/K norms are 100× larger at Layer 1** (6586/5514 vs 45/52)
 15. **The rewiring is localized to Layers 0-1**: DroPE suppresses Layer 0 attention (46.9% → 3.3%), amplifies Layer 1 attention (0.9% → 68.6%), then matches RoPE for Layers 2-31 (~35% attention)
+16. **DroPE fails at passkey retrieval across all context lengths** (20% at 512, 0% at 4096 vs RoPE's ~100%). The restructuring helps local coherence but not long-range retrieval.
 
-### 11.2 Implications for Context Extension
+### 12.2 Implications for Context Extension
 
 DroPE enables longer contexts. Our findings suggest a mechanism:
 
@@ -727,7 +771,7 @@ DroPE enables longer contexts. Our findings suggest a mechanism:
 2. This concentration may create bottlenecks at long contexts
 3. DroPE distributes attention more evenly, potentially enabling better generalization to longer sequences
 
-## 12. Reproducibility
+## 13. Reproducibility
 
 ```bash
 python scripts/run_llama_comparison.py      # Experiment 1
@@ -744,6 +788,8 @@ python scripts/run_layer1_content_analysis.py # Experiment 8 (Layer 1 content)
 python scripts/create_layer1_content_figures.py # Layer 1 content figures
 python scripts/run_crosslayer_balance.py      # Experiment 9 (cross-layer balance)
 python scripts/create_crosslayer_figures.py   # Cross-layer figures
+python scripts/run_context_scaling.py         # Experiment 10 (context length)
+python scripts/create_context_scaling_figures.py # Context scaling figures
 python scripts/create_phase_figures.py      # Phase figures
 python scripts/create_bos_write_figures.py  # BOS write figures
 python scripts/create_attention_figures.py  # Attention figures
@@ -759,7 +805,7 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | Text samples | 10 |
 | Random seeds | 10 |
 
-## 13. Summary
+## 14. Summary
 
 | Metric | RoPE | DroPE |
 |--------|------|-------|
@@ -786,11 +832,13 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | **Layer 1 K norm** | 52.0 | **5,514** |
 | **Layer 0 Attn contribution** | 46.9% | **3.3%** |
 | **Layers 2-31 Attn contribution** | 34.7% | 35.2% |
+| **Passkey @ 512** | 100% | 20% |
+| **Passkey @ 4096** | 100% | **0%** |
 
 ![Figure 5](findings_figures/fig5_combined_summary.png)
 *Figure 5: Summary of both experiments.*
 
-## 14. Citation
+## 15. Citation
 
 ```bibtex
 @techreport{africa2026massive,
@@ -801,7 +849,7 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 }
 ```
 
-## 15. References
+## 16. References
 
 Jin, M., Sun, K., et al. (2025). Massive Values in Self-Attention Modules are the Key to Contextual Knowledge Understanding. ICML.
 

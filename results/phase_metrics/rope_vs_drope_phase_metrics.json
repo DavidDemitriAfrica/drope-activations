@@ -60003,6 +60003,28 @@
         0.8925244152192272,
         0.6805825782417749
       ]
+    },
+    "context_scaling": {
+      "512": {
+        "accuracy": 1.0,
+        "actual_length": 453,
+        "num_samples": 20
+      },
+      "1024": {
+        "accuracy": 0.95,
+        "actual_length": 965,
+        "num_samples": 20
+      },
+      "2048": {
+        "accuracy": 1.0,
+        "actual_length": 1979,
+        "num_samples": 20
+      },
+      "4096": {
+        "accuracy": 1.0,
+        "actual_length": 4035,
+        "num_samples": 20
+      }
     }
   },
   "DroPE": {
@@ -120009,6 +120031,28 @@
         0.7747682397818141,
         0.6745587602233839
       ]
+    },
+    "context_scaling": {
+      "512": {
+        "accuracy": 0.2,
+        "actual_length": 449,
+        "num_samples": 20
+      },
+      "1024": {
+        "accuracy": 0.2,
+        "actual_length": 964,
+        "num_samples": 20
+      },
+      "2048": {
+        "accuracy": 0.05,
+        "actual_length": 1981,
+        "num_samples": 20
+      },
+      "4096": {
+        "accuracy": 0.0,
+        "actual_length": 4032,
+        "num_samples": 20
+      }
     }
   }
 }
