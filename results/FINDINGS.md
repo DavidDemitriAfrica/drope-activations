@@ -696,48 +696,61 @@ This explains why DroPE can function without positional embeddings while preserv
 
 The Layer 0 suppression is new information. DroPE doesn't just amplify Layer 1 attention. It first suppresses Layer 0 attention (from 46.9% to 3.3%), pushing almost all initial processing through the MLP. Then Layer 1 takes over with its amplified attention. It's a two-step handoff: MLP-dominant → attention-dominant → back to normal.
 
-## 11. Experiment 10: Context Length Scaling
+## 11. Experiment 10: Context Length Scaling (& Prompt Format Sensitivity)
 
 ### 11.1 Motivation
 
 The whole point of DroPE is longer contexts. Does the Layer 0-1 restructuring actually help at longer context lengths? We hypothesized that DroPE might underperform at short contexts but catch up or surpass RoPE at longer contexts.
 
-### 11.2 Method
+### 11.2 The Quantization Problem
 
-We test passkey retrieval at 512, 1024, 2048, and 4096 tokens. The passkey (a 5-digit number) is hidden at a random position in filler text, and the model must retrieve it.
+Our initial results showed DroPE at 0-20% passkey accuracy—a complete failure. But this contradicted the DroPE paper, which showed successful NIAH (Needle in a Haystack) performance on the RULER benchmark.
 
-### 11.3 Results
+**Root cause**: 4-bit quantization (NF4) severely degrades DroPE. Without quantization, DroPE's retrieval improves dramatically. This makes sense: DroPE's Layer 1 Q/K values are 100× larger than RoPE's. Quantizing these extreme values likely destroys the precision they require.
 
-| Context Length | RoPE | DroPE | Difference |
-|----------------|------|-------|------------|
-| 512 | 100% | 20% | -80% |
-| 1024 | 95% | 20% | -75% |
-| 2048 | 100% | 5% | -95% |
-| 4096 | 100% | 0% | -100% |
+### 11.3 Prompt Format Matters
 
-![Figure 24](phase_metrics/fig_context_scaling.png)
-*Figure 24: Passkey retrieval by context length. RoPE maintains near-perfect accuracy. DroPE fails completely and gets worse at longer contexts.*
+The DroPE paper used the RULER benchmark, which has a specific prompt format with explicit retrieval instructions:
 
-![Figure 25](phase_metrics/fig_context_scaling_line.png)
-*Figure 25: The gap between RoPE and DroPE widens as context length increases.*
+> "Some special magic numbers are hidden within the following text. **Make sure to memorize it.** I will quiz you about the numbers afterwards."
 
-### 11.4 Key Finding
+Our simple passkey prompt lacks this instruction:
 
-**DroPE completely fails at passkey retrieval, and it gets worse at longer contexts.**
+> "The secret passkey is XXXXX. ... What is the secret passkey?"
 
-This is the opposite of what we hypothesized. The Layer 0-1 restructuring that allows DroPE to function for general language modeling is not sufficient for needle-in-haystack retrieval. RoPE's positional encoding provides something that DroPE's 100x Q/K amplification cannot replicate.
+**Result**: DroPE performs significantly better with RULER-style prompts. RoPE is unaffected by prompt format.
 
-### 11.5 Interpretation
+### 11.4 Corrected Results (No Quantization)
 
-This result suggests a fundamental limitation of DroPE's approach:
+| Context | RoPE RULER | RoPE Simple | DroPE RULER | DroPE Simple |
+|---------|------------|-------------|-------------|--------------|
+| 512 | 100% | 100% | 80% | 80% |
+| 1024 | 100% | 100% | 80% | 40% |
+| 2048 | 100% | 100% | 40% | 0% |
 
-1. **DroPE's restructuring helps with local coherence** (perplexity, fluent generation)
-2. **But it fails at long-range retrieval** (finding specific information in context)
-3. **The failure worsens with context length**, suggesting the problem is not just noise but a systematic inability to encode position
+**Key observations**:
+- **RoPE is rock solid**: 100% accuracy regardless of context length or prompt format
+- **DroPE needs explicit instructions**: RULER format helps significantly at longer contexts (40% vs 0% at 2048)
+- **DroPE still degrades with context**: Even with optimal prompts, accuracy drops from 80% → 40% as context grows
+- **DroPE makes "near misses"**: Often retrieves numbers with added/dropped digits (e.g., `5485907` → `548507`)
 
-The massive Q/K values at Layer 1 may create strong attention patterns, but they don't encode *where* tokens are. Without positional information, the model cannot reliably retrieve a specific piece of information from a specific location.
+### 11.5 Key Finding
 
-This explains the earlier passkey results (60% vs 100% at baseline): DroPE's 60% accuracy likely comes from cases where the passkey happens to be in a position that the model attends to by chance, not from actual positional retrieval.
+**DroPE's passkey retrieval is fundamentally limited, but not as broken as our quantized tests suggested.**
+
+The pattern is clear: without position embeddings, DroPE relies heavily on semantic cues ("memorize", "quiz", "magic number") to know what information matters. RoPE doesn't need these cues—position is encoded directly.
+
+### 11.6 Interpretation
+
+This result reveals a fundamental trade-off in DroPE's approach:
+
+1. **DroPE sacrifices precise positional encoding** for context length flexibility
+2. **It compensates with semantic attention** (explicit "pay attention to this" cues help)
+3. **The digit errors suggest position-adjacent decoding issues**, not complete failure to attend
+
+The near-misses (off-by-one digits) are particularly telling. DroPE *attends* to the right region but can't precisely decode multi-digit sequences. RoPE's rotary embeddings encode position at the digit level. DroPE's amplified attention finds the needle but fumbles the extraction.
+
+**Practical implication**: DroPE may work better for tasks that require finding *whether* information exists (classification) rather than extracting *exact* values (retrieval). The 100× Q/K amplification creates strong attention but imprecise readout.
 
 ## 12. Discussion
 
@@ -761,15 +774,19 @@ This explains the earlier passkey results (60% vs 100% at baseline): DroPE's 60%
 13. **DroPE inverts Layer 1 attention/MLP balance**: attention contributes 68.8% vs RoPE's 0.9%
 14. **DroPE Q/K norms are 100× larger at Layer 1** (6586/5514 vs 45/52)
 15. **The rewiring is localized to Layers 0-1**: DroPE suppresses Layer 0 attention (46.9% → 3.3%), amplifies Layer 1 attention (0.9% → 68.6%), then matches RoPE for Layers 2-31 (~35% attention)
-16. **DroPE fails at passkey retrieval across all context lengths** (20% at 512, 0% at 4096 vs RoPE's ~100%). The restructuring helps local coherence but not long-range retrieval.
+16. **DroPE passkey retrieval is limited but prompt-sensitive**: With RULER-style prompts (no quantization), DroPE achieves 80% at 512 tokens but degrades to 40% at 2048. Simple prompts fail completely. 4-bit quantization breaks DroPE retrieval entirely.
 
 ### 12.2 Implications for Context Extension
 
-DroPE enables longer contexts. Our findings suggest a mechanism:
+DroPE enables longer contexts, but with a trade-off. Our findings suggest:
 
 1. RoPE concentrates attention in specific dimensions via massive values
-2. This concentration may create bottlenecks at long contexts
-3. DroPE distributes attention more evenly, potentially enabling better generalization to longer sequences
+2. This concentration encodes precise positional information but may create bottlenecks at long contexts
+3. DroPE distributes attention more evenly via Layer 1 amplification
+4. **Trade-off**: DroPE gains context length flexibility but loses precise positional retrieval
+5. **Practical implication**: DroPE may excel at tasks requiring semantic understanding over long contexts, but struggle with exact information retrieval
+
+The 4-bit quantization sensitivity is particularly important: DroPE's extreme Q/K values (100× larger than RoPE) require higher precision. Memory-constrained deployments using quantization may find DroPE unsuitable.
 
 ## 13. Reproducibility
 
@@ -789,6 +806,7 @@ python scripts/create_layer1_content_figures.py # Layer 1 content figures
 python scripts/run_crosslayer_balance.py      # Experiment 9 (cross-layer balance)
 python scripts/create_crosslayer_figures.py   # Cross-layer figures
 python scripts/run_context_scaling.py         # Experiment 10 (context length)
+python scripts/test_ruler_format.py           # Experiment 10 (RULER vs simple format)
 python scripts/create_context_scaling_figures.py # Context scaling figures
 python scripts/create_phase_figures.py      # Phase figures
 python scripts/create_bos_write_figures.py  # BOS write figures
@@ -832,8 +850,9 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | **Layer 1 K norm** | 52.0 | **5,514** |
 | **Layer 0 Attn contribution** | 46.9% | **3.3%** |
 | **Layers 2-31 Attn contribution** | 34.7% | 35.2% |
-| **Passkey @ 512** | 100% | 20% |
-| **Passkey @ 4096** | 100% | **0%** |
+| **Passkey @ 512 (RULER, no quant)** | 100% | 80% |
+| **Passkey @ 2048 (RULER, no quant)** | 100% | **40%** |
+| **Passkey @ 2048 (simple, no quant)** | 100% | **0%** |
 
 ![Figure 5](findings_figures/fig5_combined_summary.png)
 *Figure 5: Summary of both experiments.*
