@@ -121,9 +121,20 @@ def compute_attention_entropy(attn_weights):
     # attn_weights[h, q, k] = attention from query q to key k
     # For each query position, compute entropy of attention distribution
     eps = 1e-10
-    # Mask out zeros (from causal mask)
-    attn_safe = attn_weights.clamp(min=eps)
-    entropy = -torch.sum(attn_weights * torch.log(attn_safe), dim=-1)  # [heads, seq]
+
+    # Replace any NaN with eps
+    attn_weights = torch.nan_to_num(attn_weights, nan=eps)
+
+    # Clamp to valid probability range
+    attn_safe = attn_weights.clamp(min=eps, max=1.0)
+
+    # Compute entropy: -sum(p * log(p))
+    log_attn = torch.log(attn_safe)
+    entropy = -torch.sum(attn_safe * log_attn, dim=-1)  # [heads, seq]
+
+    # Replace any remaining NaN/inf with 0
+    entropy = torch.nan_to_num(entropy, nan=0.0, posinf=0.0, neginf=0.0)
+
     # Average over query positions
     mean_entropy = entropy.mean(dim=-1)  # [heads]
     return mean_entropy.numpy()
