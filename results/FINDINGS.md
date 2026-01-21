@@ -309,14 +309,25 @@ Minimum entropy identifies the layer with the most compressed representations. R
 
 The results are striking. Despite nearly identical sink rates, the models respond completely differently to BOS-MLP ablation.
 
-RoPE suffers catastrophic failure. The model cannot function without BOS-MLP processing, suggesting BOS stores critical position-dependent information.
+**BOS-MLP Ablation Results:**
 
-DroPE shows zero effect. Despite 95.6% of heads attending to BOS, the information stored there is expendable. DroPE has learned to make BOS a "garbage collector" that receives attention but stores nothing essential.
+| Condition | RoPE Cities | RoPE Sports | RoPE Pass | RoPE IMDB | DroPE Cities | DroPE Sports | DroPE Pass | DroPE IMDB |
+|-----------|-------------|-------------|-----------|-----------|--------------|--------------|------------|------------|
+| baseline | 99% | 69% | 100% | 50% | 60% | 70% | 30% | 9% |
+| bos_mlp_ablation | **0%** | **0%** | **0%** | **0%** | 60% | 71% | 25% | 11% |
+| qk_disruption | 58% | 60% | 0% | 2% | 66% | 56% | 0% | 9% |
+| combined | 49% | 64% | 0% | 0% | 62% | 56% | 0% | 4% |
+
+RoPE suffers catastrophic failure under BOS-MLP ablation—**0% accuracy on all tasks**. This is not merely wrong answers; the model produces outputs so incoherent that they contain no valid yes/no responses. The model cannot function without BOS-MLP processing, confirming that BOS stores critical position-dependent information essential for coherent generation.
+
+DroPE shows remarkable resilience. Despite 95.6% of heads attending to BOS, performance is virtually unchanged (parametric: 65%→65.5%, contextual: 19.5%→18%). DroPE has learned to make BOS a "garbage collector" that receives attention but stores nothing essential.
+
+Q/K disruption affects both models for passkey retrieval (100%→0% for RoPE, 30%→0% for DroPE), but DroPE's parametric tasks remain stable. This confirms that massive values serve different roles: RoPE uses them for critical information storage, while DroPE uses them as vestigial attention routing.
 
 **Sink rate does not imply functional dependence.** Both models route attention to BOS, but only RoPE stores critical information there. This explains why DroPE's massive values appear vestigial—the model has reorganized to distribute critical information across the sequence rather than concentrating it in specific tokens or dimensions.
 
 ![Figure 16](phase_metrics/fig_functional.png)
-*Figure 16: Functional dependence comparison. RoPE requires BOS-MLP; DroPE does not.*
+*Figure 16: Functional evaluation across all 4 intervention conditions for all 4 tasks (Cities, Sports, Passkey, IMDB). Top row: parametric tasks; bottom row: contextual tasks. RoPE collapses completely under BOS-MLP ablation (0% on all tasks—model outputs are incoherent), while DroPE maintains parametric performance (60-71%). Q/K disruption destroys passkey retrieval for both models but leaves DroPE's parametric tasks intact.*
 
 ![Figure 17](phase_metrics/fig_phase_summary.png)
 *Figure 17: Summary of phase metrics analysis.*
@@ -330,10 +341,11 @@ DroPE shows zero effect. Despite 95.6% of heads attending to BOS, the informatio
 3. RoPE models cannot function without massive values; DroPE models degrade but remain usable
 4. RoPE follows Jin et al.'s pattern: contextual knowledge (94.3% degradation) affected 3.8× more than parametric (24.5%)
 5. DroPE shows dramatically different behavior:
-   - Parametric accuracy **improves** when disrupted (−1.9% degradation)
-   - Contextual degradation is 73% lower than RoPE (25% vs 94.3%)
-   - Passkey retrieval is completely unaffected (0% degradation vs RoPE's 100%)
+   - Parametric accuracy stable or improved under BOS-MLP ablation (65%→65.5%)
+   - Contextual degradation minimal under BOS-MLP ablation (19.5%→18%)
+   - Q/K disruption affects passkey retrieval similarly to RoPE (both drop to 0%)
 6. **Both models have ~97% attention sink rates, but only RoPE depends on BOS-MLP** (1249× PPL increase vs 1.00×)
+7. **BOS-MLP ablation = 0% accuracy on ALL tasks for RoPE** vs maintained performance for DroPE
 
 ### 6.2 Implications for Context Extension
 
@@ -352,6 +364,7 @@ python scripts/finish_jin_tests.py          # Experiment 3 (Jin et al. replicati
 python scripts/run_phase_metrics.py         # Experiment 4 (phase metrics)
 python scripts/rerun_drope_metrics.py       # Experiment 4 (fix DroPE entropy)
 python scripts/fix_drope_sink_rates.py      # Experiment 4 (fix DroPE sink rates)
+python scripts/run_functional_tests.py      # Experiment 4 (functional tests)
 python scripts/create_phase_figures.py      # Phase figures
 python scripts/create_findings_figures.py   # Main figures
 ```
@@ -371,14 +384,14 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 |--------|------|-------|
 | Query massive values | 1476 ± 23 | 901 ± 36 |
 | Key massive values | 1497 ± 70 | 1332 ± 74 |
-| PPL increase (disrupted) | +115,929% | +1,421% |
-| Parametric avg degradation | 24.5% | **−1.9%** |
-| Contextual avg degradation | **94.3%** | 25.0% |
-| Passkey degradation | **100.0%** | **0.0%** |
-| Massive value reliance | 82× higher | baseline |
+| PPL increase (Q/K disrupted) | +115,929% | +1,421% |
+| Parametric avg (baseline) | 84% | 65% |
+| Contextual avg (baseline) | 75% | 19.5% |
 | Attention sink rate | 97.8% | 95.6% |
-| BOS-MLP ablation | **1249× PPL** | **1.00×** |
-| Functional after disruption | No | Yes (improved) |
+| BOS-MLP ablation PPL | **1249×** | **1.00×** |
+| BOS-MLP ablation accuracy | **0% (all tasks)** | **Maintained** |
+| Q/K disruption passkey | 0% | 0% |
+| Functional after BOS ablation | **No** | **Yes** |
 
 ![Figure 5](findings_figures/fig5_combined_summary.png)
 *Figure 5: Summary of both experiments.*

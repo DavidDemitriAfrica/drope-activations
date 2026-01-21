@@ -233,7 +233,7 @@ def plot_interventions(results: dict, output_dir: Path):
 
 
 def plot_functional(results: dict, output_dir: Path):
-    """Plot functional evaluation results."""
+    """Plot functional evaluation results for all 4 tasks."""
     setup_style()
 
     # Check if functional data exists
@@ -241,57 +241,47 @@ def plot_functional(results: dict, output_dir: Path):
         print("Skipping functional plots - no functional data")
         return
 
-    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes = axes.flatten()
 
     colors = {'RoPE': '#e74c3c', 'DroPE': '#3498db'}
 
     # Get available conditions
     conditions = list(results['RoPE']['functional'].keys())
-
-    # Perplexity
-    ax = axes[0]
     x = np.arange(len(conditions))
     width = 0.35
 
-    rope_ppl = [results['RoPE']['functional'][c]['perplexity'] for c in conditions]
-    drope_ppl = [results['DroPE']['functional'][c]['perplexity'] for c in conditions]
+    tasks = [
+        ('cities', 'Cities (Parametric)', 0),
+        ('sports', 'Sports (Parametric)', 1),
+        ('passkey', 'Passkey Retrieval (Contextual)', 2),
+        ('imdb', 'IMDB Sentiment (Contextual)', 3),
+    ]
 
-    ax.bar(x - width/2, rope_ppl, width, label='RoPE', color=colors['RoPE'], alpha=0.8)
-    ax.bar(x + width/2, drope_ppl, width, label='DroPE', color=colors['DroPE'], alpha=0.8)
-    ax.set_ylabel('Perplexity')
-    ax.set_title('Perplexity by Condition')
-    ax.set_xticks(x)
-    ax.set_xticklabels([c.replace('_', '\n') for c in conditions], fontsize=9)
-    ax.legend()
-    ax.set_yscale('log')
+    for task_key, task_title, ax_idx in tasks:
+        ax = axes[ax_idx]
+        rope_vals = [results['RoPE']['functional'][c].get(task_key, 0) * 100 for c in conditions]
+        drope_vals = [results['DroPE']['functional'][c].get(task_key, 0) * 100 for c in conditions]
 
-    # Passkey
-    ax = axes[1]
-    rope_pass = [results['RoPE']['functional'][c]['passkey'] * 100 for c in conditions]
-    drope_pass = [results['DroPE']['functional'][c]['passkey'] * 100 for c in conditions]
+        bars1 = ax.bar(x - width/2, rope_vals, width, label='RoPE', color=colors['RoPE'], alpha=0.8)
+        bars2 = ax.bar(x + width/2, drope_vals, width, label='DroPE', color=colors['DroPE'], alpha=0.8)
 
-    ax.bar(x - width/2, rope_pass, width, label='RoPE', color=colors['RoPE'], alpha=0.8)
-    ax.bar(x + width/2, drope_pass, width, label='DroPE', color=colors['DroPE'], alpha=0.8)
-    ax.set_ylabel('Accuracy (%)')
-    ax.set_title('Passkey Retrieval')
-    ax.set_xticks(x)
-    ax.set_xticklabels([c.replace('_', '\n') for c in conditions], fontsize=9)
-    ax.legend()
-    ax.set_ylim(0, 105)
+        ax.set_ylabel('Accuracy (%)')
+        ax.set_title(task_title)
+        ax.set_xticks(x)
+        ax.set_xticklabels([c.replace('_', '\n') for c in conditions], fontsize=9)
+        ax.legend()
+        ax.set_ylim(0, 105)
 
-    # IMDB
-    ax = axes[2]
-    rope_imdb = [results['RoPE']['functional'][c]['imdb'] * 100 for c in conditions]
-    drope_imdb = [results['DroPE']['functional'][c]['imdb'] * 100 for c in conditions]
-
-    ax.bar(x - width/2, rope_imdb, width, label='RoPE', color=colors['RoPE'], alpha=0.8)
-    ax.bar(x + width/2, drope_imdb, width, label='DroPE', color=colors['DroPE'], alpha=0.8)
-    ax.set_ylabel('Accuracy (%)')
-    ax.set_title('IMDB Sentiment')
-    ax.set_xticks(x)
-    ax.set_xticklabels([c.replace('_', '\n') for c in conditions], fontsize=9)
-    ax.legend()
-    ax.set_ylim(0, 105)
+        # Add value labels on bars
+        for bar, val in zip(bars1, rope_vals):
+            if val > 0:
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2,
+                       f'{val:.0f}', ha='center', va='bottom', fontsize=8)
+        for bar, val in zip(bars2, drope_vals):
+            if val > 0:
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2,
+                       f'{val:.0f}', ha='center', va='bottom', fontsize=8)
 
     plt.tight_layout()
     plt.savefig(output_dir / 'fig_functional.png', dpi=150, bbox_inches='tight')

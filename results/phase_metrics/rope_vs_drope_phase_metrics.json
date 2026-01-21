@@ -1413,13 +1413,31 @@
     "functional": {
       "baseline": {
         "perplexity": 3.81628262943967,
+        "cities": 0.99,
+        "sports": 0.69,
         "passkey": 1.0,
-        "imdb": 0.44
+        "imdb": 0.5
       },
       "qk_disruption": {
         "perplexity": 25.59878866266187,
+        "cities": 0.58,
+        "sports": 0.6,
         "passkey": 0.0,
-        "imdb": 0.05
+        "imdb": 0.02
+      },
+      "bos_mlp_ablation": {
+        "perplexity": 0,
+        "cities": 0,
+        "sports": 0,
+        "passkey": 0.0,
+        "imdb": 0.0
+      },
+      "combined": {
+        "perplexity": 0,
+        "cities": 0.4895833333333333,
+        "sports": 0.6363636363636364,
+        "passkey": 0.0,
+        "imdb": 0.0
       }
     },
     "bos_spike_layer": 1
@@ -2838,13 +2856,31 @@
     "functional": {
       "baseline": {
         "perplexity": 4.225355310559559,
-        "passkey": 0.6,
-        "imdb": 0.3
+        "cities": 0.6,
+        "sports": 0.7,
+        "passkey": 0.3,
+        "imdb": 0.09
       },
       "qk_disruption": {
         "perplexity": 5.45685904867744,
-        "passkey": 0.6,
-        "imdb": 0.15
+        "cities": 0.6551724137931034,
+        "sports": 0.5555555555555556,
+        "passkey": 0.0,
+        "imdb": 0.09
+      },
+      "bos_mlp_ablation": {
+        "perplexity": 0,
+        "cities": 0.595,
+        "sports": 0.71,
+        "passkey": 0.25,
+        "imdb": 0.11
+      },
+      "combined": {
+        "perplexity": 0,
+        "cities": 0.6229508196721312,
+        "sports": 0.56,
+        "passkey": 0.0,
+        "imdb": 0.04
       }
     },
     "bos_spike_layer": 2
