@@ -2,9 +2,45 @@
 
 David Africa, 2026
 
-## Abstract
+## The Story So Far
 
-We investigate how DroPE (Dropping Positional Embeddings) models differ from standard RoPE models in their use of massive values—concentrated large activations in Query and Key tensors that prior work identifies as critical for contextual understanding. Comparing Llama-2-7B with its DroPE variant, we find: (1) DroPE reduces Query massive values by 39%, with a notable reorganization where Layer 1 shows 37× more massive values than RoPE while later layers show 60% fewer; (2) RoPE models rely 82× more on massive values than DroPE, as measured by perplexity degradation when these values are zeroed; (3) While RoPE follows Jin et al.'s pattern where disruption degrades contextual knowledge (94.3%) far more than parametric (24.5%), DroPE shows dramatically different behavior—contextual degradation is 73% lower (25% vs 94.3%), and parametric accuracy actually *improves* when disrupted. Most strikingly, passkey retrieval—a pure contextual task—collapses completely under disruption in RoPE (100%→0%) but is entirely unaffected in DroPE (60%→60%). These findings suggest DroPE's massive values may be vestigial artifacts rather than functional features, and that the model learns fundamentally different attention mechanisms during recalibration.
+Language models have a quirk. When you look inside their attention mechanisms, you find certain dimensions with unusually large values. Jin et al. (2025) called these "massive values" and showed they are essential for understanding context. Break them and the model loses the ability to use information from earlier in the conversation. It can still recall facts from training, but it cannot reason about what you just told it.
+
+These massive values come from RoPE, the positional encoding scheme used by most modern language models. RoPE tells the model where each token is in the sequence. The massive values appear to be how the model stores and retrieves positional information.
+
+This raises an interesting question. Gelberg et al. (2025) created DroPE, a technique that removes RoPE entirely from pretrained models. The models still work after some recalibration. But if massive values come from RoPE and are essential for contextual understanding, how can DroPE models function without them?
+
+We investigated. What we found was not what we expected.
+
+## The Puzzle
+
+DroPE models still have massive values. They have 39% fewer in Query tensors and 11% fewer in Key tensors, but they are still there. More interesting: DroPE reorganizes where massive values appear. Layer 1 has 37 times more massive values than in RoPE. Later layers have 60% fewer. The model concentrates something important in that first layer.
+
+The first surprise came when we broke the massive values. In RoPE, zeroing out massive value dimensions causes perplexity to explode from 1.3 to 1,508. The model becomes useless. In DroPE, perplexity only goes from 1.5 to 22.7. Not great, but the model still works. RoPE depends on massive values 82 times more than DroPE does.
+
+The second surprise came from functional tests. Jin et al. showed that disrupting massive values in RoPE hurts contextual tasks (like reading comprehension) far more than parametric tasks (like recalling facts). We replicated this: 94% degradation on contextual versus 25% on parametric. But DroPE showed the opposite pattern. Contextual tasks degraded only 25%. Parametric accuracy actually improved slightly when we broke the massive values.
+
+The clearest result was passkey retrieval. Hide a 5-digit number in a wall of text and ask the model to find it. This is pure contextual reasoning. RoPE scores 100% normally and 0% with massive values disrupted. Complete collapse. DroPE scores 60% normally and 60% with massive values disrupted. Zero degradation. The massive values are not doing anything for contextual retrieval in DroPE.
+
+## The Deeper Mystery
+
+So DroPE does not need its massive values. But here is the strange part: both models look identical on the surface. We measured attention patterns across all 32 layers and 32 heads. Both models have about 93% "sink heads" that attend primarily to the first token. Both route attention the same way. Yet one dies when you touch its massive values and the other shrugs it off.
+
+We found the answer in Layer 1. In RoPE, Layer 1 does almost all its work through the MLP. Attention contributes only 0.9% to the residual stream. The MLP contributes 99.1%. Ablating the MLP causes a 1,815x increase in perplexity. Ablating attention causes only a 2.5x increase.
+
+DroPE has inverted this balance. Attention contributes 68.8% to the residual stream. The MLP contributes 31.2%. Both components are equally critical. Ablating either one causes about 200x perplexity increase.
+
+How does DroPE make attention so dominant? By amplifying the Query and Key projections. RoPE Layer 1 has Q norms around 45 and K norms around 52. DroPE Layer 1 has Q norms around 6,586 and K norms around 5,514. That is 100 times larger. These massive Q/K values create sharp attention patterns that write large vectors to the residual stream.
+
+## What This Means
+
+DroPE compensates for losing positional embeddings by fundamentally restructuring its first layer. Instead of encoding position through RoPE and storing positional information in massive values, DroPE amplifies its attention mechanism to create strong initial routing patterns. The massive values that remain are vestigial. They persist structurally but serve no function. They may even cause interference, which would explain why breaking them sometimes improves performance.
+
+This has implications for context length extension. RoPE concentrates critical information in specific dimensions, which may create bottlenecks. DroPE distributes processing more evenly, potentially enabling better generalization to longer sequences.
+
+The rest of this document presents the experiments in detail.
+
+---
 
 ## 1. Background
 
@@ -150,7 +186,7 @@ Jin et al. (2025) demonstrate that massive value disruption affects contextual k
 | **DroPE** | −1.9% | 25.0% | — |
 
 ![Figure 7](findings_figures/fig7_degradation_comparison.png)
-*Figure 7: Degradation comparison across all tasks. RoPE shows severe contextual degradation (88-100%), while DroPE is dramatically more robust.*
+*Figure 7: Degradation comparison across all tasks. RoPE shows severe contextual degradation (88-100%). DroPE is far more robust.*
 
 ### 4.4 Key Findings
 
@@ -160,7 +196,7 @@ Jin et al. (2025) demonstrate that massive value disruption affects contextual k
 - Passkey retrieval collapses completely (100% → 0%)
 - Massive values are critical for contextual understanding
 
-**DroPE shows dramatically different behavior:**
+**DroPE shows different behavior:**
 - Contextual degradation is 73% lower than RoPE (25% vs 94.3%)
 - Parametric accuracy actually **improves** when disrupted (−1.9%)
 - **Passkey is completely unaffected** (60% → 60%, 0% degradation)
@@ -293,7 +329,7 @@ Both models have high sink rates across nearly all layers, contrary to our hypot
 | Peak BOS Norm | 982 (layer 23) | 519 (layer 26) |
 | Min Entropy | 0.008 (layer 1) | 0.129 (layer 2) |
 
-The BOS spike layer is the first layer where the BOS token's norm exceeds other tokens by more than 2×. RoPE spikes at layer 1; DroPE delays this to layer 2.
+The BOS spike layer is the first layer where the BOS token's norm exceeds other tokens by more than 2×. RoPE spikes at layer 1. DroPE delays this to layer 2.
 
 Peak BOS norm measures the maximum L2 norm the BOS token reaches across all layers. DroPE's peak is 47% lower than RoPE's, suggesting less extreme concentration in the BOS representation.
 
@@ -318,16 +354,16 @@ The results are striking. Despite nearly identical sink rates, the models respon
 | qk_disruption | 58% | 60% | 0% | 2% | 66% | 56% | 0% | 9% |
 | combined | 49% | 64% | 0% | 0% | 62% | 56% | 0% | 4% |
 
-RoPE suffers catastrophic failure under BOS-MLP ablation—**0% accuracy on all tasks**. This is not merely wrong answers; the model produces outputs so incoherent that they contain no valid yes/no responses. The model cannot function without BOS-MLP processing, confirming that BOS stores critical position-dependent information essential for coherent generation.
+RoPE suffers catastrophic failure under BOS-MLP ablation: **0% accuracy on all tasks**. This is not merely wrong answers. The model produces outputs so incoherent that they contain no valid yes/no responses. The model cannot function without BOS-MLP processing. This confirms that BOS stores critical position-dependent information essential for coherent generation.
 
 DroPE shows remarkable resilience. Despite 95.6% of heads attending to BOS, performance is virtually unchanged (parametric: 65%→65.5%, contextual: 19.5%→18%). DroPE has learned to make BOS a "garbage collector" that receives attention but stores nothing essential.
 
 Q/K disruption affects both models for passkey retrieval (100%→0% for RoPE, 30%→0% for DroPE), but DroPE's parametric tasks remain stable. This confirms that massive values serve different roles: RoPE uses them for critical information storage, while DroPE uses them as vestigial attention routing.
 
-**Sink rate does not imply functional dependence.** Both models route attention to BOS, but only RoPE stores critical information there. This explains why DroPE's massive values appear vestigial—the model has reorganized to distribute critical information across the sequence rather than concentrating it in specific tokens or dimensions.
+**Sink rate does not imply functional dependence.** Both models route attention to BOS, but only RoPE stores critical information there. This explains why DroPE's massive values appear vestigial. The model has reorganized to distribute critical information across the sequence rather than concentrating it in specific tokens or dimensions.
 
 ![Figure 16](phase_metrics/fig_functional.png)
-*Figure 16: Functional evaluation across all 4 intervention conditions for all 4 tasks (Cities, Sports, Passkey, IMDB). Top row: parametric tasks; bottom row: contextual tasks. RoPE collapses completely under BOS-MLP ablation (0% on all tasks—model outputs are incoherent), while DroPE maintains parametric performance (60-71%). Q/K disruption destroys passkey retrieval for both models but leaves DroPE's parametric tasks intact.*
+*Figure 16: Functional evaluation across all 4 intervention conditions for all 4 tasks (Cities, Sports, Passkey, IMDB). Top row: parametric tasks. Bottom row: contextual tasks. RoPE collapses completely under BOS-MLP ablation (0% on all tasks, outputs are incoherent). DroPE maintains parametric performance (60-71%). Q/K disruption destroys passkey retrieval for both models but leaves DroPE's parametric tasks intact.*
 
 ![Figure 17](phase_metrics/fig_phase_summary.png)
 *Figure 17: Summary of phase metrics analysis.*
@@ -338,7 +374,7 @@ Q/K disruption affects both models for passkey retrieval (100%→0% for RoPE, 30
 
 Experiment 4 revealed a striking puzzle: both models have ~97% attention sink rates, yet only RoPE depends on BOS-MLP ablation (1249× PPL increase vs 1.00×). If both models attend to BOS equally, why does only RoPE store critical information there?
 
-We hypothesized that DroPE's attention sinks might be "no-ops"—heads that route attention to BOS but don't actually write meaningful content to the residual stream. To test this, we measure the **effective BOS write score**, which combines:
+We hypothesized that DroPE's attention sinks might be "no-ops": heads that route attention to BOS but do not actually write meaningful content to the residual stream. To test this, we measure the **effective BOS write score**, which combines:
 - **BOS attention mass**: How much attention each head pays to BOS
 - **BOS V norm**: The L2 norm of the Value vector at BOS position
 
@@ -346,7 +382,7 @@ We hypothesized that DroPE's attention sinks might be "no-ops"—heads that rout
 effective_write = attention_to_BOS × V_norm_at_BOS
 ```
 
-A low write score would indicate sinks that attend but don't write. We also perform **BOS-V ablation**—zeroing the V projection at BOS—to measure functional dependence on BOS value content.
+A low write score would indicate sinks that attend but do not write. We also perform **BOS-V ablation** (zeroing the V projection at BOS) to measure functional dependence on BOS value content.
 
 ### 6.2 Method
 
@@ -386,7 +422,7 @@ def bos_v_ablation_hook(module, input, output):
 
 Contrary to our hypothesis, DroPE has **higher** BOS write scores than RoPE (0.34 vs 0.22). DroPE also has higher BOS V norms (0.61 vs 0.36), meaning it writes *more* content to BOS, not less.
 
-The key difference is in **where** the write happens: RoPE's max write is at layer 31 (late), while DroPE's max write is at layer 1—the same layer where massive activations concentrate.
+The key difference is in **where** the write happens. RoPE's max write is at layer 31 (late). DroPE's max write is at layer 1, the same layer where massive activations concentrate.
 
 ![Figure 18](phase_metrics/fig_bos_write_analysis.png)
 *Figure 18: BOS write analysis. Top left: V norms per layer. Top right: attention mass per layer. Bottom left: effective write score per layer. Bottom right: BOS-V ablation effects.*
@@ -403,7 +439,7 @@ Both models show similar sensitivity to BOS-V ablation (~4× PPL increase when a
 
 ### 6.4 Interpretation
 
-The results refute the "no-op sink" hypothesis. DroPE's attention sinks do write meaningful content to the residual stream—more than RoPE, in fact. Both models depend similarly on BOS value content (BOS-V ablation: ~4× degradation).
+The results refute the "no-op sink" hypothesis. DroPE's attention sinks do write meaningful content to the residual stream. They write more than RoPE, in fact. Both models depend similarly on BOS value content (BOS-V ablation: ~4× degradation).
 
 The key difference lies in **MLP processing**, not attention routing or V content:
 
@@ -412,7 +448,7 @@ The key difference lies in **MLP processing**, not attention routing or V conten
 | BOS-V (all layers) | 4.12× | 3.39× |
 | BOS-MLP (spike layer) | 1249× | 1.00× |
 
-RoPE's BOS-MLP stores critical position-dependent information that cannot be recovered from other sources. DroPE's BOS-MLP, despite receiving similar V content, does not encode essential information—the model has learned to distribute critical computations elsewhere.
+RoPE's BOS-MLP stores critical position-dependent information that cannot be recovered from other sources. DroPE's BOS-MLP, despite receiving similar V content, does not encode essential information. The model has learned to distribute critical computations elsewhere.
 
 ### 6.5 The Massive Activation Connection
 
@@ -421,7 +457,7 @@ DroPE layer 1 shows massive Q/K activations (±394) that cause attention score o
 - DroPE reorganizes massive values (37× more than RoPE at layer 1)
 - DroPE delays its BOS spike (layer 2 vs layer 1)
 
-The massive activations at layer 1 may serve as a positional substitute—extreme values that create strong, stable attention patterns without requiring RoPE's rotary embeddings. The model concentrates this processing early, leaving later layers free for content-based attention.
+The massive activations at layer 1 may serve as a positional substitute. These extreme values create strong, stable attention patterns without requiring RoPE's rotary embeddings. The model concentrates this processing early, leaving later layers free for content-based attention.
 
 ## 7. Experiment 6: Layer 1 Ablation Study
 
@@ -471,9 +507,9 @@ We ablate Layer 1 components and measure functional impact:
 ### 7.4 Key Findings
 
 1. **RoPE Layer 1 MLP is 725× more critical than attention** (1815× vs 2.5× PPL increase)
-2. **DroPE shows uniform criticality** — both MLP and attention are equally important (~201×)
+2. **DroPE shows uniform criticality**: both MLP and attention are equally important (~201×)
 3. **RoPE attention ablation preserves parametric tasks** (60% cities, 70% sports) but destroys passkey (0%)
-4. **DroPE Layer 1 is uniformly critical** — any ablation destroys all tasks
+4. **DroPE Layer 1 is uniformly critical**: any ablation destroys all tasks
 5. **DroPE is 9× more resilient overall** to Layer 1 MLP ablation (202× vs 1815×)
 
 ### 7.5 Interpretation
@@ -583,8 +619,8 @@ Metrics:
 
 **DroPE has completely inverted the attention/MLP balance at Layer 1.**
 
-- **RoPE**: Attention contributes only 0.9% to the residual stream; MLP dominates at 99.1%
-- **DroPE**: Attention contributes 68.8% to the residual stream; MLP is only 31.2%
+- **RoPE**: Attention contributes only 0.9% to the residual stream. MLP dominates at 99.1%.
+- **DroPE**: Attention contributes 68.8% to the residual stream. MLP is only 31.2%.
 
 This explains the ablation asymmetry from Experiment 6:
 - RoPE attention ablation (2.5× PPL) has minimal impact because attention contributes only 0.9%
@@ -616,20 +652,20 @@ This is the mechanistic explanation for the "positional substitute" hypothesis: 
 
 1. Massive values are encoded in projection weights during RoPE training
 2. DroPE recalibration reduces concentration (−39% Query, −11% Key) but reorganizes Layer 1
-3. RoPE models cannot function without massive values; DroPE models degrade but remain usable
+3. RoPE models cannot function without massive values. DroPE models degrade but remain usable.
 4. RoPE follows Jin et al.'s pattern: contextual knowledge (94.3% degradation) affected 3.8× more than parametric (24.5%)
-5. DroPE shows dramatically different behavior:
+5. DroPE shows different behavior:
    - Parametric accuracy stable or improved under BOS-MLP ablation (65%→65.5%)
    - Contextual degradation minimal under BOS-MLP ablation (19.5%→18%)
    - Q/K disruption affects passkey retrieval similarly to RoPE (both drop to 0%)
 6. **Both models have ~97% attention sink rates, but only RoPE depends on BOS-MLP** (1249× PPL increase vs 1.00×)
 7. **BOS-MLP ablation = 0% accuracy on ALL tasks for RoPE** vs maintained performance for DroPE
-8. **DroPE has higher BOS write scores (0.34 vs 0.22)** but doesn't depend on BOS-MLP—the critical difference is in MLP processing, not attention routing
+8. **DroPE has higher BOS write scores (0.34 vs 0.22)** but does not depend on BOS-MLP. The critical difference is in MLP processing, not attention routing.
 9. **DroPE concentrates BOS writes at layer 1** (max write layer), where massive activations are 37× higher than RoPE
 10. **Layer 1 MLP ablation is 725× more critical for RoPE than Layer 1 attention** (1815× vs 2.5×)
-11. **DroPE shows uniform Layer 1 criticality** — both MLP and attention equally important (~200×)
+11. **DroPE shows uniform Layer 1 criticality**: both MLP and attention equally important (~200×)
 12. **Attention patterns are nearly identical** (~93% sink heads) yet functional importance differs completely
-13. **DroPE inverts Layer 1 attention/MLP balance** — attention contributes 68.8% vs RoPE's 0.9%
+13. **DroPE inverts Layer 1 attention/MLP balance**: attention contributes 68.8% vs RoPE's 0.9%
 14. **DroPE Q/K norms are 100× larger at Layer 1** (6586/5514 vs 45/52)
 
 ### 10.2 Implications for Context Extension
