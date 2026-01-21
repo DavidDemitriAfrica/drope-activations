@@ -652,9 +652,53 @@ DroPE compensates for the removal of positional embeddings by:
 
 This is the mechanistic explanation for the "positional substitute" hypothesis: without RoPE's positional encoding, DroPE uses extreme Q/K values at Layer 1 to establish position-independent attention routing that serves a similar organizational function.
 
-## 10. Discussion
+## 10. Experiment 9: Cross-Layer Balance
 
-### 10.1 Summary of Findings
+### 10.1 Motivation
+
+Experiment 8 revealed that DroPE inverts the attention/MLP balance at Layer 1 (68.8% attention vs 0.9% for RoPE). Is this a local phenomenon, or does the inversion persist throughout the network?
+
+### 10.2 Method
+
+We capture attention and MLP output norms for all 32 layers and compute the attention contribution fraction:
+
+```
+attention_contribution = attn_norm / (attn_norm + mlp_norm)
+```
+
+### 10.3 Results
+
+| Layer | RoPE Attn % | DroPE Attn % | Difference |
+|-------|-------------|--------------|------------|
+| 0 | 46.9% | 3.3% | -43.5% |
+| 1 | 0.9% | 68.6% | +67.7% |
+| 2-31 avg | 34.7% | 35.2% | +0.5% |
+
+![Figure 22](phase_metrics/fig_crosslayer_balance.png)
+*Figure 22: Cross-layer attention/MLP balance. The inversion is localized to Layers 0-1. After Layer 2, both models are nearly identical.*
+
+![Figure 23](phase_metrics/fig_layer01_spotlight.png)
+*Figure 23: Layers 0-1 show opposite patterns. Layers 2-31 are nearly identical between models.*
+
+### 10.4 Key Finding
+
+**The rewiring is localized to the first two layers.**
+
+DroPE makes two compensating changes:
+1. **Layer 0**: Suppresses attention (46.9% → 3.3%)
+2. **Layer 1**: Amplifies attention (0.9% → 68.6%)
+
+After Layer 1, both models have nearly identical attention/MLP balance (~35% attention, ~65% MLP). The architectural difference that makes DroPE work is entirely concentrated in the network's "entryway."
+
+### 10.5 Interpretation
+
+This explains why DroPE can function without positional embeddings while preserving most of the original model's behavior. The model only needs to restructure its first two layers to establish position-independent routing. The remaining 30 layers operate the same way they always did, processing whatever representations emerge from Layers 0-1.
+
+The Layer 0 suppression is new information. DroPE doesn't just amplify Layer 1 attention. It first suppresses Layer 0 attention (from 46.9% to 3.3%), pushing almost all initial processing through the MLP. Then Layer 1 takes over with its amplified attention. It's a two-step handoff: MLP-dominant → attention-dominant → back to normal.
+
+## 11. Discussion
+
+### 11.1 Summary of Findings
 
 1. Massive values are encoded in projection weights during RoPE training
 2. DroPE recalibration reduces concentration (−39% Query, −11% Key) but reorganizes Layer 1
@@ -673,8 +717,9 @@ This is the mechanistic explanation for the "positional substitute" hypothesis: 
 12. **Attention patterns are nearly identical** (~93% sink heads) yet functional importance differs completely
 13. **DroPE inverts Layer 1 attention/MLP balance**: attention contributes 68.8% vs RoPE's 0.9%
 14. **DroPE Q/K norms are 100× larger at Layer 1** (6586/5514 vs 45/52)
+15. **The rewiring is localized to Layers 0-1**: DroPE suppresses Layer 0 attention (46.9% → 3.3%), amplifies Layer 1 attention (0.9% → 68.6%), then matches RoPE for Layers 2-31 (~35% attention)
 
-### 10.2 Implications for Context Extension
+### 11.2 Implications for Context Extension
 
 DroPE enables longer contexts. Our findings suggest a mechanism:
 
@@ -682,7 +727,7 @@ DroPE enables longer contexts. Our findings suggest a mechanism:
 2. This concentration may create bottlenecks at long contexts
 3. DroPE distributes attention more evenly, potentially enabling better generalization to longer sequences
 
-## 11. Reproducibility
+## 12. Reproducibility
 
 ```bash
 python scripts/run_llama_comparison.py      # Experiment 1
@@ -697,6 +742,8 @@ python scripts/run_layer1_ablation.py       # Experiment 6 (Layer 1 ablation)
 python scripts/run_attention_analysis.py    # Experiment 7 (attention patterns)
 python scripts/run_layer1_content_analysis.py # Experiment 8 (Layer 1 content)
 python scripts/create_layer1_content_figures.py # Layer 1 content figures
+python scripts/run_crosslayer_balance.py      # Experiment 9 (cross-layer balance)
+python scripts/create_crosslayer_figures.py   # Cross-layer figures
 python scripts/create_phase_figures.py      # Phase figures
 python scripts/create_bos_write_figures.py  # BOS write figures
 python scripts/create_attention_figures.py  # Attention figures
@@ -712,7 +759,7 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | Text samples | 10 |
 | Random seeds | 10 |
 
-## 12. Summary
+## 13. Summary
 
 | Metric | RoPE | DroPE |
 |--------|------|-------|
@@ -737,11 +784,13 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | **Layer 1 Attn contribution** | **0.9%** | **68.8%** |
 | **Layer 1 Q norm** | 45.5 | **6,586** |
 | **Layer 1 K norm** | 52.0 | **5,514** |
+| **Layer 0 Attn contribution** | 46.9% | **3.3%** |
+| **Layers 2-31 Attn contribution** | 34.7% | 35.2% |
 
 ![Figure 5](findings_figures/fig5_combined_summary.png)
 *Figure 5: Summary of both experiments.*
 
-## 13. Citation
+## 14. Citation
 
 ```bibtex
 @techreport{africa2026massive,
@@ -752,7 +801,7 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 }
 ```
 
-## 14. References
+## 15. References
 
 Jin, M., Sun, K., et al. (2025). Massive Values in Self-Attention Modules are the Key to Contextual Knowledge Understanding. ICML.
 
