@@ -576,6 +576,9 @@ Metrics:
 | Q norm | 45.5 | **6,586** | **145×** |
 | K norm | 52.0 | **5,514** | **106×** |
 
+![Figure 21](phase_metrics/fig_layer1_content.png)
+*Figure 21: Layer 1 content analysis. Top left: output norms (log scale). Top right: contribution to residual stream. Bottom left: Q/K projection norms (DroPE ~100× larger). Bottom right: attention output by layer.*
+
 ### 9.4 Key Finding
 
 **DroPE has completely inverted the attention/MLP balance at Layer 1.**
@@ -651,6 +654,7 @@ python scripts/run_bos_write_analysis.py    # Experiment 5 (BOS value analysis)
 python scripts/run_layer1_ablation.py       # Experiment 6 (Layer 1 ablation)
 python scripts/run_attention_analysis.py    # Experiment 7 (attention patterns)
 python scripts/run_layer1_content_analysis.py # Experiment 8 (Layer 1 content)
+python scripts/create_layer1_content_figures.py # Layer 1 content figures
 python scripts/create_phase_figures.py      # Phase figures
 python scripts/create_bos_write_figures.py  # BOS write figures
 python scripts/create_attention_figures.py  # Attention figures
