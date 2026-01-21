@@ -332,9 +332,209 @@ Q/K disruption affects both models for passkey retrieval (100%→0% for RoPE, 30
 ![Figure 17](phase_metrics/fig_phase_summary.png)
 *Figure 17: Summary of phase metrics analysis.*
 
-## 6. Discussion
+## 6. Experiment 5: BOS Value Analysis
 
-### 6.1 Summary of Findings
+### 6.1 Motivation
+
+Experiment 4 revealed a striking puzzle: both models have ~97% attention sink rates, yet only RoPE depends on BOS-MLP ablation (1249× PPL increase vs 1.00×). If both models attend to BOS equally, why does only RoPE store critical information there?
+
+We hypothesized that DroPE's attention sinks might be "no-ops"—heads that route attention to BOS but don't actually write meaningful content to the residual stream. To test this, we measure the **effective BOS write score**, which combines:
+- **BOS attention mass**: How much attention each head pays to BOS
+- **BOS V norm**: The L2 norm of the Value vector at BOS position
+
+```
+effective_write = attention_to_BOS × V_norm_at_BOS
+```
+
+A low write score would indicate sinks that attend but don't write. We also perform **BOS-V ablation**—zeroing the V projection at BOS—to measure functional dependence on BOS value content.
+
+### 6.2 Method
+
+We hook Q, K, and V projections to capture pre-attention representations:
+
+```python
+# Capture V norms at BOS position
+v_out = layer.self_attn.v_proj(hidden_states)
+bos_v = v_out[0, 0, :].view(num_heads, head_dim)
+bos_v_norms = bos_v.norm(dim=1)  # [num_heads]
+
+# Compute attention from Q, K manually (DroPE incompatible with output_attentions)
+scores = torch.matmul(q, k.T) * scale
+attn_weights = F.softmax(scores.masked_fill(causal_mask, -inf), dim=-1)
+bos_attn_mass = attn_weights[:, :, 1:, 0].mean()  # attention to BOS from non-BOS tokens
+```
+
+**Note**: DroPE layer 1 has massive Q/K activations (±394 vs RoPE's ±5), causing attention scores to overflow. We clamp scores to [-100, 100] before softmax to prevent NaN.
+
+For BOS-V ablation:
+```python
+def bos_v_ablation_hook(module, input, output):
+    output[:, 0, :] = 0  # Zero V at BOS position
+    return output
+```
+
+### 6.3 Results
+
+**BOS Write Metrics**
+
+| Metric | RoPE | DroPE |
+|--------|------|-------|
+| Mean BOS V Norm | 0.36 | **0.61** |
+| Mean BOS Attention Mass | 71.7% | 69.0% |
+| Mean Effective Write Score | 0.22 | **0.34** |
+| Max Write Layer | 31 | **1** |
+
+Contrary to our hypothesis, DroPE has **higher** BOS write scores than RoPE (0.34 vs 0.22). DroPE also has higher BOS V norms (0.61 vs 0.36), meaning it writes *more* content to BOS, not less.
+
+The key difference is in **where** the write happens: RoPE's max write is at layer 31 (late), while DroPE's max write is at layer 1—the same layer where massive activations concentrate.
+
+![Figure 18](phase_metrics/fig_bos_write_analysis.png)
+*Figure 18: BOS write analysis. Top left: V norms per layer. Top right: attention mass per layer. Bottom left: effective write score per layer. Bottom right: BOS-V ablation effects.*
+
+**BOS-V Ablation**
+
+| Condition | RoPE | DroPE |
+|-----------|------|-------|
+| Baseline PPL | 10.3 | 17.7 |
+| BOS-V ablation (spike layer) | 0.93× | 1.02× |
+| BOS-V ablation (all layers) | **4.12×** | **3.39×** |
+
+Both models show similar sensitivity to BOS-V ablation (~4× PPL increase when ablating all layers). This contrasts sharply with BOS-MLP ablation, which affects RoPE 1249× more than DroPE.
+
+### 6.4 Interpretation
+
+The results refute the "no-op sink" hypothesis. DroPE's attention sinks do write meaningful content to the residual stream—more than RoPE, in fact. Both models depend similarly on BOS value content (BOS-V ablation: ~4× degradation).
+
+The key difference lies in **MLP processing**, not attention routing or V content:
+
+| Ablation | RoPE Effect | DroPE Effect |
+|----------|-------------|--------------|
+| BOS-V (all layers) | 4.12× | 3.39× |
+| BOS-MLP (spike layer) | 1249× | 1.00× |
+
+RoPE's BOS-MLP stores critical position-dependent information that cannot be recovered from other sources. DroPE's BOS-MLP, despite receiving similar V content, does not encode essential information—the model has learned to distribute critical computations elsewhere.
+
+### 6.5 The Massive Activation Connection
+
+DroPE layer 1 shows massive Q/K activations (±394) that cause attention score overflow. This is the same layer where:
+- DroPE has its max BOS write score (1.14)
+- DroPE reorganizes massive values (37× more than RoPE at layer 1)
+- DroPE delays its BOS spike (layer 2 vs layer 1)
+
+The massive activations at layer 1 may serve as a positional substitute—extreme values that create strong, stable attention patterns without requiring RoPE's rotary embeddings. The model concentrates this processing early, leaving later layers free for content-based attention.
+
+## 7. Experiment 6: Layer 1 Ablation Study
+
+### 7.1 Motivation
+
+DroPE Layer 1 shows three unusual properties:
+- 37× more massive values than RoPE (101.3 vs 2.7)
+- Maximum BOS write score (1.14)
+- Extreme Q/K activations (±394 vs RoPE's ±5)
+
+What function does this concentrated Layer 1 processing serve? Is it a "positional substitute" mechanism?
+
+### 7.2 Method
+
+We ablate Layer 1 components and measure functional impact:
+
+| Condition | Description |
+|-----------|-------------|
+| `baseline` | No ablation |
+| `layer1_mlp` | Zero MLP output at layer 1 |
+| `layer1_attn` | Zero attention output at layer 1 |
+| `layer1_both` | Zero both MLP and attention at layer 1 |
+| `layer1_bos_only` | Zero only BOS token's layer 1 outputs |
+
+### 7.3 Results
+
+**Perplexity Impact**
+
+| Condition | RoPE PPL | DroPE PPL | RoPE Ratio | DroPE Ratio |
+|-----------|----------|-----------|------------|-------------|
+| baseline | 10.26 | 17.65 | 1.0× | 1.0× |
+| layer1_mlp | 18,630 | 3,563 | **1815×** | **202×** |
+| layer1_attn | 25.77 | 3,557 | **2.5×** | **201×** |
+| layer1_both | 13,824 | 3,603 | 1347× | 204× |
+| layer1_bos_only | 14,422 | 3,018 | 1405× | 171× |
+
+**Task Accuracy**
+
+| Condition | RoPE Cities | RoPE Sports | RoPE Pass | RoPE IMDB | DroPE Cities | DroPE Sports | DroPE Pass | DroPE IMDB |
+|-----------|-------------|-------------|-----------|-----------|--------------|--------------|------------|------------|
+| baseline | 99% | 69% | **100%** | 50% | 60% | 70% | 30% | 9% |
+| layer1_mlp | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| layer1_attn | **60%** | **70%** | 0% | 5% | 0% | 0% | 0% | 0% |
+| layer1_both | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| layer1_bos_only | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+
+### 7.4 Key Findings
+
+1. **RoPE Layer 1 MLP is 725× more critical than attention** (1815× vs 2.5× PPL increase)
+2. **DroPE shows uniform criticality** — both MLP and attention are equally important (~201×)
+3. **RoPE attention ablation preserves parametric tasks** (60% cities, 70% sports) but destroys passkey (0%)
+4. **DroPE Layer 1 is uniformly critical** — any ablation destroys all tasks
+5. **DroPE is 9× more resilient overall** to Layer 1 MLP ablation (202× vs 1815×)
+
+### 7.5 Interpretation
+
+The dramatic difference in Layer 1 architecture explains the "positional substitute" hypothesis:
+
+**RoPE**: Layer 1 MLP stores critical position-dependent information. Attention at Layer 1 is relatively unimportant (2.5× vs 1815×). The model concentrates positional processing in the MLP.
+
+**DroPE**: Without RoPE, the model redistributes positional processing across both MLP and attention at Layer 1. Both components become equally critical (~200×), but the total criticality is 9× lower than RoPE's MLP alone.
+
+This supports the hypothesis that DroPE's 37× increase in Layer 1 massive values serves as an alternative positional encoding mechanism, distributed across both MLP and attention rather than concentrated in MLP alone.
+
+## 8. Experiment 7: Attention Pattern Analysis
+
+### 8.1 Motivation
+
+Both models have ~97% sink rates but respond completely differently to ablations. What do the actual attention patterns look like beyond sink rates?
+
+### 8.2 Method
+
+We analyze attention patterns across 8 diverse texts:
+- Compute attention entropy per head (focused vs distributed)
+- Classify heads as sink (BOS attention ≥ 0.3), local, or distributed
+- Measure attention decay with distance
+- Compare Layer 1 patterns specifically
+
+### 8.3 Results
+
+**Attention Pattern Comparison**
+
+| Metric | RoPE | DroPE |
+|--------|------|-------|
+| Mean BOS Attention | 65.1% | 67.5% |
+| Mean Local Attention | 29.7% | 26.4% |
+| **Sink heads** | **93.5%** | **93.1%** |
+| Local heads | 6.4% | 6.2% |
+
+**Layer 1 Attention**
+
+| Metric | RoPE | DroPE |
+|--------|------|-------|
+| BOS Attention | 16.9% | 19.6% |
+| Local Attention | 40.0% | 39.4% |
+
+![Figure 19](phase_metrics/fig_attention_summary.png)
+*Figure 19: Attention pattern analysis summary.*
+
+![Figure 20](phase_metrics/fig_layer1_comparison.png)
+*Figure 20: Detailed Layer 1 attention comparison.*
+
+### 8.4 Key Finding
+
+**Attention patterns are nearly identical** (~93% sink heads in both models), yet **Layer 1 functional importance is completely different**:
+- RoPE: MLP 725× more critical than attention
+- DroPE: Equal criticality (~200× each)
+
+This demonstrates that **attention pattern similarity does not imply functional equivalence**. The models route attention identically but process it completely differently.
+
+## 9. Discussion
+
+### 9.1 Summary of Findings
 
 1. Massive values are encoded in projection weights during RoPE training
 2. DroPE recalibration reduces concentration (−39% Query, −11% Key) but reorganizes Layer 1
@@ -346,8 +546,13 @@ Q/K disruption affects both models for passkey retrieval (100%→0% for RoPE, 30
    - Q/K disruption affects passkey retrieval similarly to RoPE (both drop to 0%)
 6. **Both models have ~97% attention sink rates, but only RoPE depends on BOS-MLP** (1249× PPL increase vs 1.00×)
 7. **BOS-MLP ablation = 0% accuracy on ALL tasks for RoPE** vs maintained performance for DroPE
+8. **DroPE has higher BOS write scores (0.34 vs 0.22)** but doesn't depend on BOS-MLP—the critical difference is in MLP processing, not attention routing
+9. **DroPE concentrates BOS writes at layer 1** (max write layer), where massive activations are 37× higher than RoPE
+10. **Layer 1 MLP ablation is 725× more critical for RoPE than Layer 1 attention** (1815× vs 2.5×)
+11. **DroPE shows uniform Layer 1 criticality** — both MLP and attention equally important (~200×)
+12. **Attention patterns are nearly identical** (~93% sink heads) yet functional importance differs completely
 
-### 6.2 Implications for Context Extension
+### 9.2 Implications for Context Extension
 
 DroPE enables longer contexts. Our findings suggest a mechanism:
 
@@ -355,7 +560,7 @@ DroPE enables longer contexts. Our findings suggest a mechanism:
 2. This concentration may create bottlenecks at long contexts
 3. DroPE distributes attention more evenly, potentially enabling better generalization to longer sequences
 
-## 7. Reproducibility
+## 10. Reproducibility
 
 ```bash
 python scripts/run_llama_comparison.py      # Experiment 1
@@ -365,7 +570,12 @@ python scripts/run_phase_metrics.py         # Experiment 4 (phase metrics)
 python scripts/rerun_drope_metrics.py       # Experiment 4 (fix DroPE entropy)
 python scripts/fix_drope_sink_rates.py      # Experiment 4 (fix DroPE sink rates)
 python scripts/run_functional_tests.py      # Experiment 4 (functional tests)
+python scripts/run_bos_write_analysis.py    # Experiment 5 (BOS value analysis)
+python scripts/run_layer1_ablation.py       # Experiment 6 (Layer 1 ablation)
+python scripts/run_attention_analysis.py    # Experiment 7 (attention patterns)
 python scripts/create_phase_figures.py      # Phase figures
+python scripts/create_bos_write_figures.py  # BOS write figures
+python scripts/create_attention_figures.py  # Attention figures
 python scripts/create_findings_figures.py   # Main figures
 ```
 
@@ -378,7 +588,7 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | Text samples | 10 |
 | Random seeds | 10 |
 
-## 8. Summary
+## 11. Summary
 
 | Metric | RoPE | DroPE |
 |--------|------|-------|
@@ -392,11 +602,19 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | BOS-MLP ablation accuracy | **0% (all tasks)** | **Maintained** |
 | Q/K disruption passkey | 0% | 0% |
 | Functional after BOS ablation | **No** | **Yes** |
+| BOS V norm (mean) | 0.36 | **0.61** |
+| BOS effective write score | 0.22 | **0.34** |
+| BOS-V ablation (all layers) | 4.12× | 3.39× |
+| Max write layer | 31 | **1** |
+| **Layer 1 MLP ablation PPL** | **1815×** | **202×** |
+| **Layer 1 Attn ablation PPL** | **2.5×** | **201×** |
+| **Layer 1 MLP/Attn ratio** | **725:1** | **1:1** |
+| Sink heads (attention) | 93.5% | 93.1% |
 
 ![Figure 5](findings_figures/fig5_combined_summary.png)
 *Figure 5: Summary of both experiments.*
 
-## Citation
+## 12. Citation
 
 ```bibtex
 @techreport{africa2026massive,
@@ -407,7 +625,7 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 }
 ```
 
-## References
+## 13. References
 
 Jin, M., Sun, K., et al. (2025). Massive Values in Self-Attention Modules are the Key to Contextual Knowledge Understanding. ICML.
 
