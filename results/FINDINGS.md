@@ -706,10 +706,7 @@ We tested passkey retrieval across the full spectrum: within training context (5
 
 | Context | Multiple | RoPE | DroPE |
 |---------|----------|------|-------|
-| 512 | 0.125× | 100% | 80% |
-| 1024 | 0.25× | 100% | 80% |
-| 2048 | 0.5× | 100% | 40% |
-| 4096 | 1.0× | 100% | 100% |
+| 4096 | 1.0× | 100% | varies |
 | 6144 | 1.5× | **0%** | 100% |
 | 8192 | 2.0× | **0%** | 80% |
 
@@ -718,37 +715,132 @@ We tested passkey retrieval across the full spectrum: within training context (5
 
 ### 11.3 The Crossover
 
-At the training boundary, something dramatic happens. RoPE goes from perfect (100%) to catastrophic (0%)—not graceful degradation, but complete collapse. The model outputs gibberish: `1111111111111`, random brackets, newlines.
+At the training boundary, something dramatic happens. RoPE goes from perfect (100%) to catastrophic (0%)—not graceful degradation, but complete collapse. The model outputs gibberish: newlines, random brackets, `[ [ [ [`.
 
-DroPE shows no such cliff. It maintains 80-100% accuracy at 2× training length. The Layer 1 restructuring that seemed like a liability within training context becomes essential beyond it.
+DroPE shows no such cliff. It maintains 80-100% accuracy at 2× training length. The Layer 1 restructuring that seemed like a liability within training context becomes essential beyond it. This confirms the DroPE paper's claims.
 
-### 11.4 The Near-Miss Pattern
+### 11.4 Investigating Failure Modes: Retrieval vs Copying
 
-Even when DroPE succeeds, it often makes *near misses*: `9995501` → `995501` (dropped digit), `6454116` → `64541116` (added digit). The model finds the needle but fumbles precise digit-by-digit extraction.
+We initially hypothesized that DroPE "attends correctly but fails at copying"—that the 100× Q/K amplification finds the needle, but without position embeddings, precise token-by-token decoding fails. To test this, we designed experiments that separate retrieval from generation.
 
-This makes sense without position embeddings. DroPE can't encode "the third digit is 9"—it relies on semantic attention, which locates information but doesn't perfectly decode token sequences.
+**Verification Test (Yes/No format):**
 
-### 11.5 Prompt Format (Within Training Context)
+"Is X the magic number?" where X is either the exact number or a near-miss (1-2 digits different).
 
-Within the training window, prompt format matters for DroPE but not RoPE:
+| Context | RoPE Discrimination | DroPE Discrimination |
+|---------|---------------------|----------------------|
+| 2048 | Δ = 0.01 | Δ = 0.02 |
+| 4096 | Δ = 0.01 | Δ = 0.02 |
+| 8192 | Δ = 0.00 | Δ = 0.01 |
 
-| Context | RoPE (any) | DroPE (RULER) | DroPE (simple) |
-|---------|------------|---------------|----------------|
+*Discrimination = P(Yes|exact) - P(Yes|near-miss). Higher means better at distinguishing.*
+
+**Neither model can reliably distinguish exact from near-miss via Yes/No verification.** The probability differences are negligible (~1-2%).
+
+**Ranking Test:**
+
+Given exact + 3 near-misses, does the model assign highest P(Yes) to the exact number?
+
+| Context | RoPE Ranking | DroPE Ranking |
+|---------|--------------|---------------|
+| 2048 | 80% | 20% |
+| 4096 | 90% | 30% |
+| 8192 | 40% | 30% |
+
+RoPE achieves 80-90% ranking within training context—the correct number usually wins by a tiny margin. DroPE ranking is at chance (25%), meaning it can't systematically favor the exact number.
+
+**The puzzle:** DroPE ranking is at chance (can't identify correct number), yet achieves 80% copy accuracy at 8192. How?
+
+**Interpretation:** Generation and verification use different mechanisms:
+- **Generation**: Autoregressive, token-by-token. Each generated token provides context for the next.
+- **Verification**: Must compare two 7-digit sequences in parallel, requiring digit-by-digit alignment.
+
+Position embeddings are crucial for digit alignment. To verify "7643788 = 7643789?", you need to compare position 7 vs position 7. Without positional encoding, DroPE sees two similar sequences but can't align them for exact comparison.
+
+### 11.5 Error Analysis: What Kind of Mistakes Does DroPE Make?
+
+We categorized 20 trials per condition:
+
+**DroPE @ 2048 tokens:**
+
+| Category | Count | Example |
+|----------|-------|---------|
+| Exact | 6 (30%) | ✓ Correct |
+| **Off-by-one-length** | 9 (45%) | `2617558` → `261758` (dropped digit) |
+| Near-miss | 2 (10%) | `8661139` → `8611139` (1 digit wrong) |
+| Wrong-length | 3 (15%) | `123456789` (generic pattern) |
+
+**The dominant error is TRUNCATION, not near-miss.** DroPE doesn't mis-copy digits—it drops a digit entirely:
+- `2617558` → `261758` (missing the 7)
+- `3566498` → `356498` (missing the 6)
+- `1404855` → `140485` (missing the 5)
+
+Only 14% of errors are true near-misses (same length, 1-2 digits wrong). 45% are truncations.
+
+**DroPE @ 4096 tokens:**
+
+| Category | Count |
+|----------|-------|
+| Exact | 0 (0%) |
+| Off-by-one-length | 4 (20%) |
+| Wrong-length | 15 (75%) |
+| Wrong-digits | 1 (5%) |
+
+At 4096, DroPE largely fails—outputting generic patterns like `12345`, `123456`, or truncated prefixes.
+
+**DroPE @ 8192 tokens:**
+
+| Category | Count |
+|----------|-------|
+| Wrong-length | 20 (100%) |
+
+Complete failure. Outputs `1000000000000000000` or `1. 1. 1. 1. 1.`—repetitive patterns, not retrieval.
+
+**RoPE comparison:**
+- Within training (≤4096): 100% exact, zero errors
+- Beyond training (8192): 95% `no_number` (gibberish), 5% wrong-length
+
+### 11.6 Revised Interpretation
+
+The original hypothesis—"DroPE attends correctly but fails at copying"—doesn't fully hold. The data suggests:
+
+1. **At short context (2048):** DroPE sometimes retrieves correctly (30%), but often **truncates** (45%). Attention doesn't reliably span the full 7-digit sequence.
+
+2. **At medium context (4096):** DroPE mostly **fails to retrieve at all**—outputs default patterns like `12345` instead of attempting the actual number.
+
+3. **At extended context (8192):** Complete failure for both models, but different failure modes:
+   - RoPE: Outputs gibberish (position encoding breaks down)
+   - DroPE: Outputs repetitive numbers (falls back to generic patterns)
+
+**The truncation pattern is key.** If retrieval worked perfectly and only copying failed, we'd expect near-misses (correct digits, maybe 1-2 wrong). Instead, we see truncation—the model cuts off early, as if attention doesn't span the full number. This suggests the 100× Q/K amplification creates strong but **imprecise** attention that captures *part* of the target.
+
+### 11.7 Prompt Format Sensitivity
+
+Within the training window, prompt format matters dramatically for DroPE:
+
+| Context | RoPE (any format) | DroPE (RULER) | DroPE (simple) |
+|---------|-------------------|---------------|----------------|
 | 1024 | 100% | 80% | 40% |
 | 2048 | 100% | 40% | 0% |
 
-RULER-style prompts with explicit cues ("memorize", "quiz") help DroPE know what to attend to. RoPE doesn't need hints—position is encoded directly.
+RULER-style prompts: "Make sure to memorize it. I will quiz you about the numbers afterwards."
 
-### 11.6 The Trade-Off
+Simple prompts: "The secret passkey is X. What is the passkey?"
 
-DroPE sacrifices short-context precision for long-context capability:
+DroPE requires explicit semantic cues to know what to attend to. RoPE doesn't need hints—position is encoded directly.
 
-| Regime | RoPE | DroPE | Winner |
-|--------|------|-------|--------|
-| Within training (≤4096) | 100% | 40-100% | RoPE |
-| Beyond training (>4096) | 0% | 80-100% | **DroPE** |
+### 11.8 Summary: The Trade-Off
 
-This confirms the DroPE paper's claims. The Layer 1 restructuring (100× Q/K amplification) creates attention patterns that generalize beyond training, at some cost to precision within it.
+| Aspect | RoPE | DroPE |
+|--------|------|-------|
+| Within training accuracy | 100% | 30-80% (varies) |
+| Beyond training accuracy | 0% (gibberish) | 80-100% |
+| Error type (within) | N/A | Truncation (45%), generic patterns |
+| Error type (beyond) | Gibberish | Repetitive numbers |
+| Verification ability | 80-90% ranking | Chance (20-30%) |
+| Prompt sensitivity | None | High |
+
+DroPE trades **precision** for **generalization**. The Layer 1 restructuring (100× Q/K amplification) enables attention patterns that work beyond training length, but at the cost of precise digit-level operations within it.
 
 ## 12. Discussion
 
@@ -772,7 +864,10 @@ This confirms the DroPE paper's claims. The Layer 1 restructuring (100× Q/K amp
 13. **DroPE inverts Layer 1 attention/MLP balance**: attention contributes 68.8% vs RoPE's 0.9%
 14. **DroPE Q/K norms are 100× larger at Layer 1** (6586/5514 vs 45/52)
 15. **The rewiring is localized to Layers 0-1**: DroPE suppresses Layer 0 attention (46.9% → 3.3%), amplifies Layer 1 attention (0.9% → 68.6%), then matches RoPE for Layers 2-31 (~35% attention)
-16. **DroPE trades short-context precision for long-context capability**: Within training context (≤4096), RoPE is 100%, DroPE 40-100%. Beyond training (6144-8192), RoPE collapses to 0% (gibberish), DroPE maintains 80-100%.
+16. **DroPE trades precision for generalization**: Within training, RoPE is 100%, DroPE 30-80% with truncation as the dominant error (45%). Beyond training, RoPE collapses to gibberish, DroPE maintains 80-100%.
+17. **DroPE's errors are truncations, not near-misses**: The model drops digits (`2617558` → `261758`) rather than mis-copying them. Only 14% of errors are true near-misses.
+18. **Neither model can verify exact vs near-miss**: Discrimination Δ ≈ 0.01-0.02. RoPE ranking is 80-90% within training; DroPE is at chance (20-30%).
+19. **DroPE requires explicit retrieval cues**: RULER-style prompts ("memorize", "quiz") double accuracy vs simple prompts. RoPE is prompt-invariant.
 
 ### 12.2 Implications for Context Extension
 
@@ -808,6 +903,9 @@ python scripts/create_crosslayer_figures.py   # Cross-layer figures
 python scripts/run_context_scaling.py         # Experiment 10 (context length)
 python scripts/test_ruler_format.py           # Experiment 10 (prompt format)
 python scripts/test_extended_context.py       # Experiment 10 (extended context)
+python scripts/test_retrieval_vs_copy.py      # Experiment 10 (retrieval vs copy)
+python scripts/test_retrieval_v2.py           # Experiment 10 (verification/ranking)
+python scripts/analyze_near_misses.py         # Experiment 10 (error categorization)
 python scripts/create_context_scaling_figures.py # Context scaling figures
 python scripts/create_phase_figures.py      # Phase figures
 python scripts/create_bos_write_figures.py  # BOS write figures
@@ -851,9 +949,11 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | **Layer 1 K norm** | 52.0 | **5,514** |
 | **Layer 0 Attn contribution** | 46.9% | **3.3%** |
 | **Layers 2-31 Attn contribution** | 34.7% | 35.2% |
-| **Passkey @ 2048 (within training)** | 100% | 40% |
-| **Passkey @ 4096 (at training limit)** | 100% | 100% |
+| **Passkey @ 2048 (within training)** | 100% | 30% |
 | **Passkey @ 8192 (2× training)** | **0%** | **80%** |
+| **Dominant error type** | N/A (100%) | Truncation (45%) |
+| **Verification ranking** | 80-90% | **20-30% (chance)** |
+| **Prompt sensitivity** | None | **High** |
 
 ![Figure 5](findings_figures/fig5_combined_summary.png)
 *Figure 5: Summary of both experiments.*
