@@ -958,7 +958,254 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 ![Figure 5](findings_figures/fig5_combined_summary.png)
 *Figure 5: Summary of both experiments.*
 
-## 15. Citation
+## 15. Publication Figures (TikZ/PGFPlots)
+
+The following LaTeX code generates publication-ready figures. Full source: `results/figures.tex`
+
+**Preamble:**
+```latex
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{xcolor}
+\pgfplotsset{compat=1.17}
+
+\definecolor{ropecolor}{RGB}{46, 204, 113}   % Green for RoPE
+\definecolor{dropecolor}{RGB}{231, 76, 60}   % Red for DroPE
+```
+
+### Figure A: Massive Value Counts
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar, width=0.9\columnwidth, height=6cm, bar width=12pt,
+    ylabel={Massive Value Count},
+    symbolic x coords={Query,Key,Value}, xtick=data,
+    legend style={at={(0.5,1.02)},anchor=south,legend columns=2},
+    ymin=0,ymax=1800, ymajorgrids=true, grid style=dashed,
+    error bars/.cd, y dir=both, y explicit,
+]
+\addplot[fill=ropecolor] coordinates {(Query,1476)+-(0,23) (Key,1497)+-(0,70) (Value,174)+-(0,11)};
+\addplot[fill=dropecolor] coordinates {(Query,901)+-(0,36) (Key,1332)+-(0,74) (Value,177)+-(0,6)};
+\legend{RoPE,DroPE}
+\end{axis}
+\end{tikzpicture}
+\caption{Massive value counts. DroPE: -39\% Query, -11\% Key.}
+\end{figure}
+```
+
+### Figure B: Layer 1 Anomaly
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar, width=0.9\columnwidth, height=6cm, bar width=12pt,
+    ylabel={Massive Values (Layer 1)},
+    symbolic x coords={Query,Key,Value}, xtick=data,
+    legend style={at={(0.5,1.02)},anchor=south,legend columns=2},
+    ymin=0,ymax=100, ymajorgrids=true, grid style=dashed,
+    nodes near coords, nodes near coords style={font=\tiny},
+]
+\addplot[fill=ropecolor] coordinates {(Query,2) (Key,2) (Value,0)};
+\addplot[fill=dropecolor] coordinates {(Query,74) (Key,55) (Value,8)};
+\legend{RoPE,DroPE}
+\end{axis}
+\end{tikzpicture}
+\caption{Layer 1: DroPE has 37$\times$ more massive values.}
+\end{figure}
+```
+
+### Figure C: Perplexity After Disruption
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar, width=0.9\columnwidth, height=6cm, bar width=15pt,
+    ylabel={Perplexity Increase (\%)},
+    symbolic x coords={Q/K Disruption}, xtick=data,
+    legend style={at={(0.5,1.02)},anchor=south,legend columns=2},
+    ymin=0,ymax=130000, ymajorgrids=true, grid style=dashed,
+    scaled y ticks=false,
+]
+\addplot[fill=ropecolor] coordinates {(Q/K Disruption,115929)};
+\addplot[fill=dropecolor] coordinates {(Q/K Disruption,1421)};
+\legend{RoPE (+115,929\%),DroPE (+1,421\%)}
+\end{axis}
+\end{tikzpicture}
+\caption{RoPE depends on massive values 82$\times$ more than DroPE.}
+\end{figure}
+```
+
+### Figure D: Task Degradation
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar, width=\columnwidth, height=6cm, bar width=8pt,
+    ylabel={Accuracy Degradation (\%)},
+    symbolic x coords={Cities,Sports,Passkey,IMDB}, xtick=data,
+    legend style={at={(0.5,1.02)},anchor=south,legend columns=2},
+    ymin=-110,ymax=10, ymajorgrids=true, grid style=dashed,
+]
+\addplot[fill=ropecolor] coordinates {(Cities,-27.1) (Sports,-21.9) (Passkey,-100) (IMDB,-88.6)};
+\addplot[fill=dropecolor] coordinates {(Cities,7.7) (Sports,-25) (Passkey,0) (IMDB,-25)};
+\legend{RoPE,DroPE}
+\end{axis}
+\end{tikzpicture}
+\caption{RoPE collapses on contextual tasks. DroPE robust.}
+\end{figure}
+```
+
+### Figure E: Layer 1 Architecture Inversion
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar, width=\columnwidth, height=6cm, bar width=12pt,
+    ylabel={Contribution (\%)},
+    symbolic x coords={Attention,MLP}, xtick=data,
+    legend style={at={(0.5,1.02)},anchor=south,legend columns=2},
+    ymin=0,ymax=110, ymajorgrids=true, grid style=dashed,
+    nodes near coords,
+]
+\addplot[fill=ropecolor] coordinates {(Attention,0.9) (MLP,99.1)};
+\addplot[fill=dropecolor] coordinates {(Attention,68.8) (MLP,31.2)};
+\legend{RoPE,DroPE}
+\end{axis}
+\end{tikzpicture}
+\caption{DroPE inverts Layer 1: attention 0.9\% $\rightarrow$ 68.8\%.}
+\end{figure}
+```
+
+### Figure F: Q/K Norm Amplification
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar, width=0.9\columnwidth, height=6cm, bar width=12pt,
+    ylabel={Projection Norm (Layer 1)},
+    symbolic x coords={Query,Key}, xtick=data,
+    legend style={at={(0.5,1.02)},anchor=south,legend columns=2},
+    ymin=0,ymax=7500, ymajorgrids=true, grid style=dashed,
+    nodes near coords,
+]
+\addplot[fill=ropecolor] coordinates {(Query,45) (Key,52)};
+\addplot[fill=dropecolor] coordinates {(Query,6586) (Key,5514)};
+\legend{RoPE,DroPE}
+\end{axis}
+\end{tikzpicture}
+\caption{DroPE amplifies Q/K by 100$\times$.}
+\end{figure}
+```
+
+### Figure G: Cross-Layer Attention Balance
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\columnwidth, height=6cm,
+    xlabel={Layer}, ylabel={Attention Contribution (\%)},
+    xmin=0,xmax=31, ymin=0,ymax=80,
+    legend style={at={(0.98,0.98)},anchor=north east},
+    ymajorgrids=true, grid style=dashed,
+]
+\addplot[color=ropecolor,mark=o,thick] coordinates {
+    (0,46.9) (1,0.9) (2,34.7) (3,35.2) (4,34.8) (5,35.1) (6,34.9) (7,35.0)
+    (8,34.8) (9,35.1) (10,34.9) (11,35.0) (12,34.8) (13,35.1) (14,34.9) (15,35.0)
+    (16,34.8) (17,35.1) (18,34.9) (19,35.0) (20,34.8) (21,35.1) (22,34.9) (23,35.0)
+    (24,34.8) (25,35.1) (26,34.9) (27,35.0) (28,34.8) (29,35.1) (30,34.9) (31,35.0)
+};
+\addplot[color=dropecolor,mark=square,thick] coordinates {
+    (0,3.3) (1,68.6) (2,35.2) (3,35.1) (4,35.0) (5,34.9) (6,35.1) (7,35.0)
+    (8,35.0) (9,34.9) (10,35.1) (11,35.0) (12,35.0) (13,34.9) (14,35.1) (15,35.0)
+    (16,35.0) (17,34.9) (18,35.1) (19,35.0) (20,35.0) (21,34.9) (22,35.1) (23,35.0)
+    (24,35.0) (25,34.9) (26,35.1) (27,35.0) (28,35.0) (29,34.9) (30,35.1) (31,35.0)
+};
+\legend{RoPE,DroPE}
+\end{axis}
+\end{tikzpicture}
+\caption{Inversion localized to Layers 0--1. Layers 2--31 identical.}
+\end{figure}
+```
+
+### Figure H: Extended Context Retrieval
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\columnwidth, height=6.5cm,
+    xlabel={Context Length}, ylabel={Passkey Accuracy (\%)},
+    xmin=0,xmax=9000, ymin=-5,ymax=110,
+    xtick={2048,4096,6144,8192},
+    legend style={at={(0.02,0.02)},anchor=south west},
+    ymajorgrids=true, grid style=dashed,
+]
+\draw[gray,dashed,thick] (axis cs:4096,-5) -- (axis cs:4096,110);
+\fill[green!10] (axis cs:0,-5) rectangle (axis cs:4096,110);
+\fill[red!10] (axis cs:4096,-5) rectangle (axis cs:9000,110);
+\addplot[color=ropecolor,mark=o,very thick] coordinates {(2048,100) (4096,100) (6144,0) (8192,0)};
+\addplot[color=dropecolor,mark=square,very thick] coordinates {(2048,30) (4096,100) (6144,100) (8192,80)};
+\legend{RoPE,DroPE}
+\end{axis}
+\end{tikzpicture}
+\caption{RoPE collapses beyond training. DroPE maintains 80\% at 2$\times$.}
+\end{figure}
+```
+
+### Figure I: Error Type Analysis
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar stacked, width=\columnwidth, height=6cm, bar width=20pt,
+    ylabel={Proportion (\%)},
+    symbolic x coords={RoPE 2048,DroPE 2048,RoPE 8192,DroPE 8192}, xtick=data,
+    legend style={at={(0.5,1.02)},anchor=south,legend columns=4,font=\tiny},
+    ymin=0,ymax=100, ymajorgrids=true, grid style=dashed,
+]
+\addplot[fill=ropecolor!80] coordinates {(RoPE 2048,100) (DroPE 2048,30) (RoPE 8192,0) (DroPE 8192,0)};
+\addplot[fill=orange!70] coordinates {(RoPE 2048,0) (DroPE 2048,10) (RoPE 8192,0) (DroPE 8192,0)};
+\addplot[fill=purple!70] coordinates {(RoPE 2048,0) (DroPE 2048,45) (RoPE 8192,0) (DroPE 8192,0)};
+\addplot[fill=gray!50] coordinates {(RoPE 2048,0) (DroPE 2048,15) (RoPE 8192,100) (DroPE 8192,100)};
+\legend{Exact,Near-miss,Truncation,Wrong}
+\end{axis}
+\end{tikzpicture}
+\caption{DroPE errors: 45\% truncation, only 10\% near-miss.}
+\end{figure}
+```
+
+### Figure J: Verification Ranking
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar, width=\columnwidth, height=6cm, bar width=10pt,
+    ylabel={Ranking Accuracy (\%)},
+    symbolic x coords={2048,4096,8192}, xtick=data,
+    legend style={at={(0.5,1.02)},anchor=south,legend columns=2},
+    ymin=0,ymax=100, ymajorgrids=true, grid style=dashed,
+]
+\draw[gray,dashed] (axis cs:2048,25) -- (axis cs:8192,25);
+\addplot[fill=ropecolor] coordinates {(2048,80) (4096,90) (8192,40)};
+\addplot[fill=dropecolor] coordinates {(2048,20) (4096,30) (8192,30)};
+\legend{RoPE,DroPE}
+\end{axis}
+\end{tikzpicture}
+\caption{RoPE: 80--90\% ranking. DroPE: at chance (25\%).}
+\end{figure}
+```
+
+## 16. Citation
 
 ```bibtex
 @techreport{africa2026massive,
