@@ -86,8 +86,8 @@ We compare `meta-llama/Llama-2-7b-hf` (RoPE) with `SakanaAI/Llama-2-7b-hf-DroPE`
 | Key | 1496.8 ± 69.8 | 1331.5 ± 74.1 | −11% |
 | Value | 174.0 ± 10.7 | 176.6 ± 5.7 | +1.5% |
 
-![Figure 1](findings_figures/fig1_massive_value_counts.png)
-*Figure 1: Massive value counts across Q, K, V tensors. Error bars show ±1 std across 10 samples.*
+![Figure 1](findings_figures/fig1_massive_counts.png)
+*Figure 1: Massive value counts across Q, K, V tensors. DroPE shows 39% reduction in Query, 11% in Key.*
 
 ![Figure 2](findings_figures/fig2_layer_distribution.png)
 *Figure 2: Query massive values by layer. Shaded region indicates the difference between models.*
@@ -101,8 +101,8 @@ The reduction is not uniform across layers. Layer 1 shows the opposite pattern:
 | Layer 1 | 2.7 | 101.3 | +37× |
 | Layers 2–31 | ~50 each | ~20 each | −60% |
 
-![Figure 6](findings_figures/fig6_layer1_anomaly.png)
-*Figure 6: Layer 1 is the only layer where DroPE exceeds RoPE in massive values.*
+![Figure 6](findings_figures/fig2_layer1_anomaly.png)
+*Figure 6: Layer 1 Anomaly: DroPE has 37× more Query massive values at Layer 1 (74 vs 2). The concentration has moved, not disappeared.*
 
 This suggests DroPE reorganizes attention rather than uniformly reducing it. Without positional embeddings, the model may concentrate position-independent processing in Layer 1.
 
@@ -139,8 +139,8 @@ Statistical tests:
 
 RoPE relies 82× more on massive values than DroPE.
 
-![Figure 3](findings_figures/fig3_disruption_perplexity.png)
-*Figure 3: Perplexity after disruption. Zeroing massive values breaks RoPE but only degrades DroPE.*
+![Figure 3](findings_figures/fig3_ppl_disruption.png)
+*Figure 3: Perplexity after disrupting massive values. RoPE: +115,929%. DroPE: +1,421%. RoPE depends on massive values 82× more than DroPE.*
 
 ![Figure 4](findings_figures/fig4_reliance_comparison.png)
 *Figure 4: M−R difference comparison showing 82× greater reliance in RoPE.*
@@ -191,8 +191,8 @@ Jin et al. (2025) demonstrate that massive value disruption affects contextual k
 | **RoPE** | 24.5% | **94.3%** | 3.8× |
 | **DroPE** | −1.9% | 25.0% | — |
 
-![Figure 7](findings_figures/fig7_degradation_comparison.png)
-*Figure 7: Degradation comparison across all tasks. RoPE shows severe contextual degradation (88-100%). DroPE is far more robust.*
+![Figure 7](findings_figures/fig4_task_degradation.png)
+*Figure 7: Task accuracy degradation after Q/K disruption. RoPE collapses on contextual tasks (88-100%). DroPE is robust, especially on Passkey (0% degradation).*
 
 ### 4.4 Key Findings
 
@@ -216,8 +216,8 @@ The passkey task is particularly revealing:
 
 This demonstrates that DroPE's contextual retrieval mechanism is entirely independent of massive values. The model has learned alternative attention patterns that don't rely on value concentration.
 
-![Figure 8](findings_figures/fig8_passkey_spotlight.png)
-*Figure 8: Passkey retrieval results. RoPE completely collapses (100% degradation) while DroPE is entirely unaffected (0% degradation).*
+![Figure 8](findings_figures/fig5_passkey.png)
+*Figure 8: Passkey retrieval: pure contextual task. RoPE collapses from 100% to 0% under disruption. DroPE is completely unaffected (60% → 60%).*
 
 ### 4.6 Interpretation
 
@@ -324,8 +324,8 @@ Both models have high sink rates across nearly all layers, contrary to our hypot
 | RoPE  | 10.2 | 12,766 | **1249×** |
 | DroPE | 18.6 | 18.5 | **1.00×** |
 
-![Figure 13](phase_metrics/fig_interventions.png)
-*Figure 13: BOS-MLP ablation results. RoPE perplexity explodes while DroPE is unaffected.*
+![Figure 13](findings_figures/fig6_bos_mlp.png)
+*Figure 13: BOS-MLP ablation effect. RoPE perplexity explodes 1249×. DroPE is completely unaffected (1.0×).*
 
 ### 5.4 Additional Phase Metrics
 
@@ -618,6 +618,12 @@ Metrics:
 | Q norm | 45.5 | **6,586** | **145×** |
 | K norm | 52.0 | **5,514** | **106×** |
 
+![Figure 21a](findings_figures/fig7_layer1_inversion.png)
+*Figure 21a: Layer 1 contribution to residual stream. RoPE: attention is decorative (0.9%), MLP dominates. DroPE inverts this: attention contributes 68.8%.*
+
+![Figure 21b](findings_figures/fig8_qk_norms.png)
+*Figure 21b: Layer 1 Q/K projection norms. DroPE amplifies by ~100× (6586 vs 45 for Query). This is how DroPE makes attention important: raw signal magnitude.*
+
 ![Figure 21](phase_metrics/fig_layer1_content.png)
 *Figure 21: Layer 1 content analysis. Top left: output norms (log scale). Top right: contribution to residual stream. Bottom left: Q/K projection norms (DroPE ~100× larger). Bottom right: attention output by layer.*
 
@@ -674,8 +680,8 @@ attention_contribution = attn_norm / (attn_norm + mlp_norm)
 | 1 | 0.9% | 68.6% | +67.7% |
 | 2-31 avg | 34.7% | 35.2% | +0.5% |
 
-![Figure 22](phase_metrics/fig_crosslayer_balance.png)
-*Figure 22: Cross-layer attention/MLP balance. The inversion is localized to Layers 0-1. After Layer 2, both models are nearly identical.*
+![Figure 22](findings_figures/fig9_crosslayer.png)
+*Figure 22: Attention contribution by layer. The inversion is localized to Layers 0-1. Layer 0: RoPE 46.9% → DroPE 3.3%. Layer 1: RoPE 0.9% → DroPE 68.6%. Layers 2-31: nearly identical (~35%).*
 
 ![Figure 23](phase_metrics/fig_layer01_spotlight.png)
 *Figure 23: Layers 0-1 show opposite patterns. Layers 2-31 are nearly identical between models.*
@@ -710,8 +716,8 @@ We tested passkey retrieval across the full spectrum: within training context (5
 | 6144 | 1.5× | **0%** | 100% |
 | 8192 | 2.0× | **0%** | 80% |
 
-![Figure 24](phase_metrics/fig_extended_context.png)
-*Figure 24: Passkey retrieval across context lengths. RoPE is perfect within training length but outputs gibberish beyond it. DroPE maintains retrieval at 2× training length.*
+![Figure 24](findings_figures/fig10_extended_context.png)
+*Figure 24: Extended context retrieval. RoPE: perfect within training, collapses to gibberish beyond. DroPE: maintains 80-100% at 2× training length. Green = within training, Red = beyond training.*
 
 ### 11.3 The Crossover
 
@@ -757,6 +763,9 @@ RoPE achieves 80-90% ranking within training context—the correct number usuall
 
 Position embeddings are crucial for digit alignment. To verify "7643788 = 7643789?", you need to compare position 7 vs position 7. Without positional encoding, DroPE sees two similar sequences but can't align them for exact comparison.
 
+![Figure 25](findings_figures/fig12_ranking.png)
+*Figure 25: Verification ranking: "Is the exact number ranked #1 among 4 candidates?" RoPE: 80-90% within training. DroPE: at chance (20-30%) across all contexts.*
+
 ### 11.5 Error Analysis: What Kind of Mistakes Does DroPE Make?
 
 We categorized 20 trials per condition:
@@ -799,6 +808,9 @@ Complete failure. Outputs `1000000000000000000` or `1. 1. 1. 1. 1.`—repetitive
 **RoPE comparison:**
 - Within training (≤4096): 100% exact, zero errors
 - Beyond training (8192): 95% `no_number` (gibberish), 5% wrong-length
+
+![Figure 26](findings_figures/fig11_error_types.png)
+*Figure 26: Error type breakdown. DroPE @ 2048: 45% truncation (drops digit), only 10% near-miss. At 8192: RoPE outputs gibberish, DroPE outputs wrong patterns. Truncation is the dominant error, not near-misses.*
 
 ### 11.6 Revised Interpretation
 
@@ -955,8 +967,8 @@ Hardware: NVIDIA A10G (24GB), 4-bit quantization (NF4)
 | **Verification ranking** | 80-90% | **20-30% (chance)** |
 | **Prompt sensitivity** | None | **High** |
 
-![Figure 5](findings_figures/fig5_combined_summary.png)
-*Figure 5: Summary of both experiments.*
+![Figure 5](findings_figures/fig13_summary.png)
+*Figure 5: Summary comparison (normalized). Key trade-offs: DroPE has fewer massive values, lower disruption sensitivity, inverted Layer 1 architecture, 100× Q/K amplification, poor verification ranking, but functional extended context retrieval.*
 
 ## 15. Publication Figures (TikZ/PGFPlots)
 
